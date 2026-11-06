@@ -6,3 +6,5 @@ locky/audio/cache/
 __pycache__/
 locky/blender/*.blend1
 locky/blender/anim_frames.json
+locky/blender/render.log
+locky/blender/bg_plate.png

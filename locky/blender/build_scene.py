@@ -130,7 +130,7 @@ def sun(name, d_gltf, color, energy, angle):
     o = bpy.data.objects.new(name, l); sc.collection.objects.link(o)
     o.rotation_mode = 'QUATERNION'; o.rotation_quaternion = v3(d_gltf).normalized().to_track_quat('Z', 'Y')
     return o
-sun('Key', (-0.55, 0.9, 0.75), (1.0, 0.93, 0.84), 3.6, 18)
+sun('Key', (-0.45, 1.6, 0.6), (1.0, 0.93, 0.84), 3.6, 35)
 sun('Fill', (0.8, 0.25, 0.45), (0.62, 0.68, 1.0), 1.0, 30)
 sun('Rim', (0.2, 0.6, -1.0), (0.6, 0.7, 1.0), 4.5, 8)
 
@@ -145,7 +145,8 @@ g = lin(BG); ramp.color_ramp.elements[0].color = (g[0] * 1.4, g[1] * 1.4, g[2] *
 ramp.color_ramp.elements[1].color = (0.62, 0.70, 1.0, 1)
 wl.new(ramp.outputs[0], bgn.inputs['Color']); bgn.inputs['Strength'].default_value = 0.55
 
-bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, 0)); floor = bpy.context.active_object; floor.name = 'ShadowCatcher'
+# small catcher that travels under Locky: a full-frame catcher costs ~5x render + denoise time
+bpy.ops.mesh.primitive_plane_add(size=6.0, location=(0, 0, 0)); floor = bpy.context.active_object; floor.name = 'ShadowCatcher'
 floor.is_shadow_catcher = True
 
 # ---------------------------------------------------------------- bake keyframes
@@ -196,6 +197,7 @@ for fi, f in enumerate(FR):
             o.hide_render = not f['visible']; o.keyframe_insert('hide_render', frame=fr)
         prev_vis = f['visible']
     floor.hide_render = f['shadow'] <= 0.001; floor.keyframe_insert('hide_render', frame=fr)
+    floor.location = (r[12], -r[14] + 0.6, 0); floor.keyframe_insert('location', frame=fr)
 
 for ad in [o.animation_data for o in sc.objects if o.animation_data] + [o.data.shape_keys.animation_data for o in meshes if o.data.shape_keys and o.data.shape_keys.animation_data]:
     act = ad.action
@@ -211,7 +213,8 @@ sc.render.fps = D['fps']
 sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1920, 1080, 100
 sc.render.engine = 'CYCLES'
 cy = sc.cycles
-cy.device = 'CPU'; cy.samples = 64; cy.adaptive_threshold = 0.02; cy.use_denoising = True; cy.denoiser = 'OPENIMAGEDENOISE'
+cy.device = 'CPU'; cy.samples = 24; cy.adaptive_threshold = 0.02; cy.use_denoising = True; cy.denoiser = 'OPENIMAGEDENOISE'; cy.denoising_prefilter = 'FAST'; cy.denoising_quality = 'BALANCED'
+sc.render.use_persistent_data = True
 cy.max_bounces = 6; cy.diffuse_bounces = 3; cy.glossy_bounces = 3; cy.transmission_bounces = 4; cy.transparent_max_bounces = 8
 sc.render.film_transparent = True
 sc.render.use_motion_blur = True; sc.render.motion_blur_shutter = 0.5

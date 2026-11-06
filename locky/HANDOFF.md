@@ -1,5 +1,52 @@
 # Locky — Entrada "El choque" · Handoff para Claude Code
 
+## 0. Estado v2 (los 4 cambios pendientes están hechos)
+
+| # | Cambio | Dónde |
+|---|--------|-------|
+| 1 | Camina **de frente** toda la entrada (sin caminar de espaldas, sin anticipación ni giro); mira al cielo, ojos `Eyes_Joy`, silbando. Whoosh eliminado. | `build/anim.js`, `build/timeline.js`, `build/sfx.py` |
+| 2 | **ElevenLabs** (`eleven_text_to_sound_v2`): plonk, pasos, silbido, chirrido en el vidrio, golpe sordo, boop, risita, destello del saludo, "ting" del guiño. 2 tomas por sonido; prompts e ids en `audio/elevenlabs/manifest.json`. `audio/mix_elevenlabs.py` las corta y las coloca según `timeline.js`. Voz de Locky: pendiente (no había guion de voz). | `audio/` |
+| 3 | **Blender 4.5 LTS + Cycles**. `blender/export_anim.js` evalúa `anim.js` cuadro a cuadro (matrices de skinning, shape keys, raíz, squash, contacto con el vidrio, cámara) y `blender/build_scene.py` arma la escena desde el GLB con esos keyframes, así WebGL y Blender comparten **una sola** coreografía. El aplastamiento contra el vidrio es un modificador Geometry Nodes (`GlassPress`) con la misma fórmula del vertex shader. El relleno de `Mouth_O` ahora se ve rosa (el problema lila era del shading WebGL). | `blender/` |
+| 4 | **Sin logo**: fuera la caída/rebote, el sobresalto/mirar arriba y los boings/destellos. Final nuevo: saluda → baja el brazo → saltito + inclinación de cabeza + guiño y saludo final. | `build/anim.js`, `build/timeline.js` |
+
+Además: la pausa con pantalla vacía bajó de 0,55 s a 0,35 s y la pieza dura **8,5 s** (antes 9,8 s).
+
+### Tiempos v2 (`build/timeline.js`, segundos)
+
+| Tiempo | Evento | Audio (ElevenLabs) |
+|--------|--------|--------------------|
+| 0.0–3.4 | Camina de frente desde z=−3, mirando al cielo, silbando (4,6 pasos/s) | pasos (uno por paso) + silbido hasta 3.0 |
+| 3.40 | Impacto contra el vidrio | plonk |
+| 4.08–4.98 | Resbala a tirones y sale de cuadro | chirrido; golpe sordo en 5.0 |
+| 5.33 | Se asoma | boop |
+| 5.93 | Avergonzado | risita |
+| 6.43 | Saluda | destello |
+| 7.00 | Baja el brazo | — |
+| 7.45–8.5 | Saltito + guiño + saludo final | ting |
+
+### Cómo reproducir la v2
+
+```bash
+cd locky/build
+python3 make_glb_js.py
+node capture.js ../frames_webgl range 0 8.5 60             # preview WebGL (Chromium de Playwright)
+node capture.js ../frames_overlay range 0 8.5 60 --overlay  # solo FX 2D del vidrio, PNG con alfa
+python3 ../audio/mix_elevenlabs.py                          # ../output/locky_sfx_v2_elevenlabs.wav
+python3 sfx.py                                              # alternativa sintetizada: ../output/locky_sfx_v2.wav
+
+cd ../blender
+node export_anim.js                                         # anim.js -> anim_frames.json
+blender -b --python build_scene.py                          # -> locky_v2.blend
+./render_all.sh /ruta/a/blender                             # Cycles -> out/f_0000.png… (reanudable)
+python3 composite.py                                        # fondo + Blender + FX + audio -> ../output/locky_entrada_choque_v2.mp4
+```
+
+Render: Cycles CPU, 24 spp adaptativo + OIDN, motion blur 0,5, película transparente con shadow catcher
+que acompaña a Locky (solo mientras camina). El fondo es una placa con la misma fórmula del shader v1
+y las FX 2D (ondas, brillo, marca empañada, estrellitas) salen del pase `--overlay`.
+
+---
+
 ## 1. Pedido original
 
 Animación de entrada de Locky (mascota candado de loomlock), estilo Minions / Illumination, muy fluida.
@@ -10,7 +57,7 @@ contra la pantalla como si fuera un vidrio (se aplasta, suena "plonk"), se resba
 vuelve a asomarse avergonzado y saluda. (Originalmente arriba caía el logo de loomlock y rebotaba:
 **ya no va**, ver pendientes.)
 
-## 2. CAMBIOS PENDIENTES (pedidos por el cliente después de ver la v1)
+## 2. Cambios pedidos tras la v1 (✅ resueltos en v2, ver sección 0)
 
 1. **Caminar de frente, no de espaldas.** En la v1 Locky entra caminando hacia atrás (de espaldas a cámara)
    y gira justo antes del choque. Tiene que caminar **de frente** hacia cámara (distraído, mirando el cielo,
@@ -87,7 +134,7 @@ Previews sueltos: `python3 capture.py ../test times '[3.8, 6.5]'`.
     `Mouth_Smirk L`, `Mouth_Smirk R`, `Mouth_Joy`, `Mouth_Fun`.
 - El GLB no trae animaciones.
 
-## 6. Guion y tiempos de la v1 (`timeline.js`, segundos)
+## 6. Guion y tiempos de la v1 (`timeline.js`, segundos) — histórico, los de v2 están en la sección 0
 
 | Tiempo | Evento | Expresión | Audio v1 |
 |---|---|---|---|
