@@ -9,7 +9,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 DATA = pathlib.Path(argv[0]) if len(argv) > 0 else HERE / 'anim_frames.json'
 OUT = pathlib.Path(argv[1]) if len(argv) > 1 else HERE / 'locky_v2.blend'
-GLB = HERE.parent / 'input' / 'LockyBase2026.glb'
+GLB = HERE.parent / 'input' / 'LockyBase2026_rigfix.glb'
 D = json.loads(DATA.read_text())
 FR = D['frames']
 

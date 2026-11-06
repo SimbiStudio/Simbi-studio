@@ -11,7 +11,7 @@ eval(fs.readFileSync(path.join(B, 'anim.js'), 'utf8'));
 
 const T = window.TL;
 const fps = Number(process.argv[2] || 60), out = process.argv[3] || path.join(__dirname, 'anim_frames.json');
-const raw = fs.readFileSync(path.join(__dirname, '..', 'input', 'LockyBase2026.glb'));
+const raw = fs.readFileSync(path.join(__dirname, '..', 'input', 'LockyBase2026_rigfix.glb'));
 const jl = raw.readUInt32LE(12), j = JSON.parse(raw.slice(20, 20 + jl).toString()), binOff = 20 + jl + 8;
 const nodes = j.nodes.map((n, i) => ({ i, name: n.name, t: n.translation || [0, 0, 0], r: n.rotation || [0, 0, 0, 1], s: n.scale || [1, 1, 1], children: n.children || [], parent: -1 }));
 nodes.forEach(n => n.children.forEach(c => nodes[c].parent = n.i));

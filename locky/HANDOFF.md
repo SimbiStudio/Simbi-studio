@@ -9,28 +9,43 @@
 | 3 | **Blender 4.5 LTS + Cycles**. `blender/export_anim.js` evalúa `anim.js` cuadro a cuadro (matrices de skinning, shape keys, raíz, squash, contacto con el vidrio, cámara) y `blender/build_scene.py` arma la escena desde el GLB con esos keyframes, así WebGL y Blender comparten **una sola** coreografía. El aplastamiento contra el vidrio es un modificador Geometry Nodes (`GlassPress`) con la misma fórmula del vertex shader. El relleno de `Mouth_O` ahora se ve rosa (el problema lila era del shading WebGL). | `blender/` |
 | 4 | **Sin logo**: fuera la caída/rebote, el sobresalto/mirar arriba y los boings/destellos. Final nuevo: saluda → baja el brazo → saltito + inclinación de cabeza + guiño y saludo final. | `build/anim.js`, `build/timeline.js` |
 
-Además: la pausa con pantalla vacía bajó de 0,55 s a 0,35 s y la pieza dura **8,5 s** (antes 9,8 s).
+| 5 | **Rig de piernas + caminata nueva** (pedido después de la v2). Ver abajo. | `input/fix_rig.py`, `build/anim.js` |
+
+Además: la pausa con pantalla vacía bajó de 0,55 s a 0,35 s. La pieza dura **9,5 s**.
+
+### Rig y caminata (v2.1)
+
+**Por qué caminaba raro:**
+- **Pesos del skin.** Toda la suela estaba ~50/50 entre `Ankle` y `Toes` (fuera talón o punta), el talón tomaba 25–50 % de la pantorrilla, `LowerLeg` influía desde el piso hasta la cadera y el muslo estaba ~50 % pegado a `Hips`. El pie se aplastaba como goma y la pierna se doblaba como fideo.
+- **Zancada imposible.** Recorría 5,5 m en 3,4 s con piernas de 22 cm: cada paso tendría que medir ~35 cm, el doble de lo que alcanza la pierna. Por eso los pies nunca apoyaban: pataleaban en el aire y patinaban.
+
+**Arreglo:**
+- `input/fix_rig.py` reescribe solo `JOINTS_0`/`WEIGHTS_0` de las piernas y genera `LockyBase2026_rigfix.glb` (mismos vértices y huesos; el original queda intacto). Ahora cada segmento es rígido, con transiciones cortas en cadera, rodilla, tobillo y metatarso. WebGL y Blender usan este GLB.
+- `anim.js`: la caminata usa **IK de 2 huesos con pies plantados**. Cada pie queda fijo en el piso durante el apoyo (56 % del ciclo), despega rodando sobre la punta (heel-off) y aterriza con un leve "slap". La cadera sube y baja lo que permiten las piernas y se carga sobre el pie de apoyo, con la inclinación compensada. Deriva medida del pie apoyado: < 1 cm.
+- Ejes verificados en el GLB: `Ankle`/`Toes` tienen el eje X **invertido** respecto de la pierna.
+- Para que la zancada sea natural, la caminata ahora empieza en z = −1,0 y dura 4,4 s (antes z = −3 y 3,4 s). Todo lo que sigue al choque se corrió +1 s.
 
 ### Tiempos v2 (`build/timeline.js`, segundos)
 
 | Tiempo | Evento | Audio (ElevenLabs) |
 |--------|--------|--------------------|
-| 0.0–3.4 | Camina de frente desde z=−3, mirando al cielo, silbando (4,6 pasos/s) | pasos (uno por paso) + silbido hasta 3.0 |
-| 3.40 | Impacto contra el vidrio | plonk |
-| 4.08–4.98 | Resbala a tirones y sale de cuadro | chirrido; golpe sordo en 5.0 |
-| 5.33 | Se asoma | boop |
-| 5.93 | Avergonzado | risita |
-| 6.43 | Saluda | destello |
-| 7.00 | Baja el brazo | — |
-| 7.45–8.5 | Saltito + guiño + saludo final | ting |
+| 0.0–4.4 | Camina de frente desde z=−1 (pies plantados, IK), mirando al cielo, silbando (4,6 pasos/s) | pasos (uno por paso) + silbido hasta 4.0 |
+| 4.40 | Impacto contra el vidrio | plonk |
+| 5.08–5.98 | Resbala a tirones y sale de cuadro | chirrido; golpe sordo en 6.0 |
+| 6.33 | Se asoma | boop |
+| 6.93 | Avergonzado | risita |
+| 7.43 | Saluda | destello |
+| 8.00 | Baja el brazo | — |
+| 8.45–9.5 | Saltito + guiño + saludo final | ting |
 
 ### Cómo reproducir la v2
 
 ```bash
-cd locky/build
+cd locky/input && python3 fix_rig.py         # -> LockyBase2026_rigfix.glb
+cd ../build
 python3 make_glb_js.py
-node capture.js ../frames_webgl range 0 8.5 60             # preview WebGL (Chromium de Playwright)
-node capture.js ../frames_overlay range 0 8.5 60 --overlay  # solo FX 2D del vidrio, PNG con alfa
+node capture.js ../frames_webgl range 0 9.5 60             # preview WebGL (Chromium de Playwright)
+node capture.js ../frames_overlay range 0 9.5 60 --overlay  # solo FX 2D del vidrio, PNG con alfa
 python3 ../audio/mix_elevenlabs.py                          # ../output/locky_sfx_v2_elevenlabs.wav
 python3 sfx.py                                              # alternativa sintetizada: ../output/locky_sfx_v2.wav
 

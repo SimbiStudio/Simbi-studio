@@ -17,6 +17,38 @@ const T = window.TL;
 const CONTACT = T.glassZ - 0.235;          // hips z at the moment the face touches the glass
 // forward walk z0 -> glass: steady stroll, a hair faster in the last steps (he never sees it coming)
 const zAt = (t) => { const u = cl(t / T.impact); return lerp(T.z0, CONTACT, 0.9 * u + 0.1 * u * u); };
+const V0 = 0.9 * (CONTACT - T.z0) / T.impact;                    // walking speed at t=0
+const pz = (t) => t >= 0 ? zAt(t) : T.z0 + V0 * t;                // path, extrapolated before t=0
+
+// ---------- walk cycle with planted feet (2-bone IK) ----------
+// Leg geometry from the GLB (glTF space, y up, +z forward): hip joint, thigh, shin, ankle height, ankle->ball.
+const LEG = { hipY: 0.270, hipZ: -0.006, L1: 0.082, L2: 0.141, ank: 0.047, ball: 0.109 };
+const DUTY = 0.56, LIFT = 0.05, ROLL = 0.5, SLAP = -0.15;
+// ankle target for one foot (absolute path z), foot pitch psi (+ = toes down) and stance flag
+const footAt = (t, off) => {
+  const W = T.stepRate / 2, c = t * W + off, k = Math.floor(c), f = c - k;
+  const plant = (kk) => pz((kk - off) / W + DUTY / 2 / W) + LEG.hipZ;   // foot lands under the hip at mid-stance
+  const rolled = (pzv, psi) => { const b = pzv + LEG.ball;                // heel lifts, foot pivots on the ball
+    return { y: LEG.ank * Math.cos(psi) + LEG.ball * Math.sin(psi), z: b + LEG.ank * Math.sin(psi) - LEG.ball * Math.cos(psi) }; };
+  if (f < DUTY) {
+    const u = f / DUTY, psi = ROLL * ss(0.72, 1, u) + SLAP * (1 - ss(0, 0.18, u));
+    const a = psi > 0 ? rolled(plant(k), psi) : { y: LEG.ank, z: plant(k) };
+    return { y: a.y, z: a.z, psi, stance: 1 };
+  }
+  const u = (f - DUTY) / (1 - DUTY), a0 = rolled(plant(k), ROLL), z1 = plant(k + 1);
+  return { y: lerp(a0.y, LEG.ank, ss(0, 1, u)) + LIFT * Math.sin(PI * u), z: lerp(a0.z, z1, sm(0, 1, u)),
+           psi: lerp(ROLL, SLAP, ss(0, 0.8, u)), stance: 0 };
+};
+// analytic 2-bone IK in the sagittal plane -> world thigh pitch, knee flex, ankle, toes (bone deltas)
+const legIK = (H, A) => {
+  const { L1, L2 } = LEG, dy = A.y - H.y, dz = A.zl - H.z;
+  const D = cl(Math.hypot(dy, dz), Math.abs(L1 - L2) + 1e-4, L1 + L2 - 1e-4);
+  const alpha = Math.atan2(-dz, -dy), beta = Math.acos(cl((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D), -1, 1));
+  const p1 = alpha - beta;                                                // knee forward
+  const ky = H.y - L1 * Math.cos(p1), kz = H.z - L1 * Math.sin(p1);
+  const p2 = Math.atan2(-(A.zl - kz), -(A.y - ky));
+  return { x: p1, k: p2 - p1, a: p2 - A.psi, toe: Math.max(0, A.psi) * (A.stance ? 1 : 0.4) };
+};
 
 // ---------- expressions ----------
 const EX = [
@@ -24,6 +56,7 @@ const EX = [
   [1.35, { 'Eyes_Joy': 1 }, { 'Mouth_U': 0.9 }],
   [2.05, { 'Eyes_Joy': 1 }, { 'Mouth_O': 1.0 }],
   [2.70, { 'Eyes_Joy': 1 }, { 'Mouth_U': 0.8 }],
+  [3.35, { 'Eyes_Joy': 1 }, { 'Mouth_O': 0.9 }],
   [T.whistleEnd + 0.05, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 0.7 }],
   [T.impact, { 'Eyes_ .> <.': 1 }, { 'Mouth_O': 1.0 }],
   [T.slideStart + 0.15, { 'Eyes_ T T': 1 }, { 'Mouth_Sad': 1 }],
@@ -62,20 +95,34 @@ window.stateAt = (t, eng) => {
   if (walking) {
     const phi = TAU * (T.stepRate / 2) * t;
     z = zAt(t);
-    x = lerp(-0.55, 0, sm(0, T.impact, t)) + 0.04 * Math.sin(t * 1.3);
+    x = lerp(-0.3, 0, sm(0, T.impact, t)) + 0.02 * Math.sin(t * 1.3);
     const lookAround = 0.42 * Math.sin(1.05 * t + 0.4) + 0.12 * Math.sin(2.3 * t);
-    rotY = 0 + lookAround * 0.5;   // facing camera, head-in-the-clouds sway
-    const s = Math.sin(phi), c = Math.cos(phi);
-    const amp = 0.62;
-    legL.x = amp * s; legR.x = -amp * s;
-    legL.k = 0.9 * Math.max(0, c); legR.k = 0.9 * Math.max(0, -c);
-    hipsY = 0.028 * Math.abs(Math.sin(phi)) - 0.01;
-    hipsZ = 0.075 * s;
+    rotY = 0 + lookAround * 0.35;   // facing camera, head-in-the-clouds sway
     hipsX = -0.30 + 0.03 * Math.cos(2 * phi);
-    armL.z = -0.38 * s; armR.z = 0.38 * s; armL.el = 0.35; armR.el = 0.35;
+    // feet: absolute path z -> root-local
+    const fL = footAt(t, 0), fR = footAt(t, 0.5);
+    fL.zl = fL.z - z; fR.zl = fR.z - z;
+    // weight shifts over the planted foot (smoothed stance difference)
+    const sw = (o) => { const c = t * T.stepRate / 2 + o, f = c - Math.floor(c); return Math.sin(PI * cl(f / DUTY)); };
+    hipsZ = 0.04 * (sw(0) - sw(0.5)) * ss(0, 0.1, t);
+    // exact hip joints: Hips rotation applied to the UpperLeg offsets
+    const qh = qm(qa(X, hipsX), qa(Z, hipsZ));
+    const rotv = (q, v) => { const [qx, qy, qz, qw] = q, u = [qx, qy, qz]; const c1 = V.cross(u, v).map((e, i) => e + qw * v[i]); const c2 = V.cross(u, c1); return v.map((e, i) => e + 2 * c2[i]); };
+    const oL = rotv(qh, [0.154, 0.015, 0.014]), oR = rotv(qh, [-0.158, 0.015, 0.014]);
+    const HIPS0 = [0.0016, 0.2551, -0.0201];
+    // hips height = as high as the planted legs allow (smooth-min), hips settle slightly at rest
+    const reach = 0.975 * (LEG.L1 + LEG.L2);
+    const maxHips = (f, o) => f.y + Math.sqrt(Math.max(0, reach * reach - (f.zl - (HIPS0[2] + o[2])) ** 2)) - (HIPS0[1] + o[1]);
+    const smin = (a, b, k = 0.006) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
+    hipsY = smin(smin(-0.008, maxHips(fL, oL)), maxHips(fR, oR));
+    const HL = { y: HIPS0[1] + hipsY + oL[1], z: HIPS0[2] + oL[2] }, HR = { y: HIPS0[1] + hipsY + oR[1], z: HIPS0[2] + oR[2] };
+    Object.assign(legL, legIK(HL, fL), { roll: hipsZ }); Object.assign(legR, legIK(HR, fR), { roll: hipsZ });
+    // arms swing against the legs (left arm back when the left foot lands)
+    const cL = t * T.stepRate / 2;
+    armL.z = -0.34 * Math.cos(TAU * cL); armR.z = 0.34 * Math.cos(TAU * cL); armL.el = 0.35; armR.el = 0.35;
     armL.x = -1.0; armR.x = -1.0;
     const bounce = Math.cos(2 * phi);
-    sqScale = [1 - 0.022 * bounce, 1 + 0.035 * bounce, 1 - 0.022 * bounce];
+    sqScale = [1 - 0.015 * bounce, 1 + 0.022 * bounce, 1 - 0.015 * bounce];
 
     sqPivot = [x, 0, z];
   } else {
@@ -147,9 +194,10 @@ window.stateAt = (t, eng) => {
 
   B['Hips'] = qm(qa(X, hipsX), qa(Z, hipsZ));
   S['Hips'] = [0, hipsY, 0];
-  B['UpperLeg_L'] = qa(X, legL.x - hipsX); B['UpperLeg_R'] = qa(X, legR.x - hipsX);
+  B['UpperLeg_L'] = qm(qa(Z, legL.roll || 0), qa(X, legL.x - hipsX)); B['UpperLeg_R'] = qm(qa(Z, legR.roll || 0), qa(X, legR.x - hipsX));
   B['LowerLeg_L'] = qa(X, legL.k); B['LowerLeg_R'] = qa(X, legR.k);
-  B['Ankle_L'] = qa(X, -0.4 * legL.k); B['Ankle_R'] = qa(X, -0.4 * legR.k);
+  B['Ankle_L'] = qa(X, legL.a !== undefined ? legL.a : -0.4 * legL.k); B['Ankle_R'] = qa(X, legR.a !== undefined ? legR.a : -0.4 * legR.k);
+  if (legL.toe !== undefined) { B['Toes_L'] = qa(X, legL.toe); B['Toes_R'] = qa(X, legR.toe); }
   // arm.z > 0 = forward (L bone: Z- forward, R bone: Z+ forward)
   B['UpperArm_L'] = qm(qa(X, armL.x), qa(Z, -armL.z));
   B['UpperArm_R'] = qm(qa(X, armR.x), qa(Z, armR.z));
