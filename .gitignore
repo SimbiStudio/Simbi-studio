@@ -1,0 +1,6 @@
+locky/build/glb.js
+locky/frames*/
+locky/test*/
+locky/blender/out/
+locky/audio/cache/
+__pycache__/

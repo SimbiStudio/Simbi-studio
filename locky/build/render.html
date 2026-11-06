@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000;overflow:hidden}#wrap{position:relative;width:1920px;height:1080px}
+canvas{position:absolute;left:0;top:0}</style></head><body>
+<div id="wrap"><canvas id="gl" width="1920" height="1080"></canvas><canvas id="ov" width="1920" height="1080"></canvas></div>
+<script src="timeline.js"></script><script src="glb.js"></script><script src="engine.js"></script><script src="anim.js"></script>
+<script>
+(async () => {
+  try {
+    const eng = new Engine(document.getElementById('gl'));
+    await eng.load(window.GLB_B64);
+    await document.fonts.load('900 200px "Inter Display"');
+    window.eng = eng;
+    window.renderAt = (t) => { const st = window.stateAt(t, eng); eng.render(st); window.drawOverlay(t, st, eng, document.getElementById('ov')); eng.gl.finish(); return true; };
+    window.READY = true;
+  } catch (e) { window.ERR = String(e.stack || e); }
+})();
+</script></body></html>

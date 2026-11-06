@@ -1,0 +1,20 @@
+window.TL = {
+  "dur": 9.8,
+  "glassZ": 2.75,
+  "z0": -3.0,
+  "walkEnd": 3.0,
+  "stepRate": 4.6,
+  "turnStart": 3.0,
+  "turnEnd": 3.38,
+  "impact": 3.72,
+  "slideStart": 4.4,
+  "slideEnd": 5.3,
+  "slideStutters": 6,
+  "peekStart": 5.85,
+  "embarrassed": 6.45,
+  "waveStart": 6.95,
+  "logoDrop": 7.25,
+  "logoLand": 7.62,
+  "lookUp": 7.95,
+  "wink": 8.75
+}
