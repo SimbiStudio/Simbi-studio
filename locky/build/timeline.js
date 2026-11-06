@@ -1,16 +1,16 @@
 window.TL = {
-  "dur": 9.5,
+  "dur": 8.3,
   "glassZ": 2.75,
   "z0": -1.0,
-  "stepRate": 4.6,
-  "whistleEnd": 4.0,
-  "impact": 4.4,
-  "slideStart": 5.08,
-  "slideEnd": 5.98,
+  "stepRate": 6.0,
+  "whistleEnd": 2.85,
+  "impact": 3.2,
+  "slideStart": 3.88,
+  "slideEnd": 4.78,
   "slideStutters": 6,
-  "peekStart": 6.33,
-  "embarrassed": 6.93,
-  "waveStart": 7.43,
-  "waveDown": 8.0,
-  "wink": 8.45
+  "peekStart": 5.13,
+  "embarrassed": 5.73,
+  "waveStart": 6.23,
+  "waveDown": 6.8,
+  "wink": 7.25
 }

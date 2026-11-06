@@ -25,18 +25,24 @@ Además: la pausa con pantalla vacía bajó de 0,55 s a 0,35 s. La pieza dura **
 - Ejes verificados en el GLB: `Ankle`/`Toes` tienen el eje X **invertido** respecto de la pierna.
 - Para que la zancada sea natural, la caminata ahora empieza en z = −1,0 y dura 4,4 s (antes z = −3 y 3,4 s). Todo lo que sigue al choque se corrió +1 s.
 
-### Tiempos v2 (`build/timeline.js`, segundos)
+### Tiempos v2.2 (`build/timeline.js`, segundos)
 
 | Tiempo | Evento | Audio (ElevenLabs) |
 |--------|--------|--------------------|
-| 0.0–4.4 | Camina de frente desde z=−1 (pies plantados, IK), mirando al cielo, silbando (4,6 pasos/s) | pasos (uno por paso) + silbido hasta 4.0 |
-| 4.40 | Impacto contra el vidrio | plonk |
-| 5.08–5.98 | Resbala a tirones y sale de cuadro | chirrido; golpe sordo en 6.0 |
-| 6.33 | Se asoma | boop |
-| 6.93 | Avergonzado | risita |
-| 7.43 | Saluda | destello |
-| 8.00 | Baja el brazo | — |
-| 8.45–9.5 | Saltito + guiño + saludo final | ting |
+| 0.0–3.2 | Camina de frente desde z=−1, ágil (6 pasos/s, pies plantados con IK), silbando con la boca sincronizada al audio | pasos (uno por paso) + silbido hasta 2.85 |
+| 3.20 | Impacto: se aplasta, rebota ~4 cm, se vuelve a pegar; brazos y piernas "estrella de mar" contra el vidrio; temblor + punch-in de cámara | plonk |
+| 3.88–4.78 | Resbala a tirones y sale de cuadro | chirrido; golpe sordo en 4.8 |
+| 5.13 | Se asoma | boop |
+| 5.73 | Avergonzado | risita |
+| 6.23 | Saluda | destello |
+| 6.80 | Baja el brazo | — |
+| 7.25–8.3 | Saltito + guiño + saludo final | ting |
+
+### Cambios v2.2
+- **Boca al silbar**: `audio/mix_elevenlabs.py` exporta la envolvente y el tono del silbido (`build/whistle_env.js`, 60 fps); `anim.js` frunce los labios (`Mouth_U`) según volumen/tono, abre un poco (`Mouth_O`) en los ataques, frunce hacia un costado (`Mouth_Smirk L`) y sonríe entre frases. La cabeza sube en las notas fuertes y se inclina con la melodía.
+- **Choque**: curva de presión con rebote (`PRESS` en `anim.js`), squash proporcional a la presión, brazos/piernas en estrella aplastados contra el vidrio, temblor de cámara 0,06 y punch-in.
+- **Caminata más ágil**: 6 pasos/s, apoyo 50 %, más rebote y balanceo de brazos con codos.
+- **Bug corregido**: la capa 2D de FX no se borraba entre cuadros (los anillos, estrellas y brillo se acumulaban). Ahora se resetea el canvas en cada cuadro.
 
 ### Cómo reproducir la v2
 
@@ -44,16 +50,16 @@ Además: la pausa con pantalla vacía bajó de 0,55 s a 0,35 s. La pieza dura **
 cd locky/input && python3 fix_rig.py         # -> LockyBase2026_rigfix.glb
 cd ../build
 python3 make_glb_js.py
-node capture.js ../frames_webgl range 0 9.5 60             # preview WebGL (Chromium de Playwright)
-node capture.js ../frames_overlay range 0 9.5 60 --overlay  # solo FX 2D del vidrio, PNG con alfa
+node capture.js ../frames_webgl range 0 8.3 60             # preview WebGL (Chromium de Playwright)
+node capture.js ../frames_overlay range 0 8.3 60 --overlay  # solo FX 2D del vidrio, PNG con alfa
 python3 ../audio/mix_elevenlabs.py                          # ../output/locky_sfx_v2_elevenlabs.wav
 python3 sfx.py                                              # alternativa sintetizada: ../output/locky_sfx_v2.wav
 
 cd ../blender
 node export_anim.js                                         # anim.js -> anim_frames.json
 blender -b --python build_scene.py                          # -> locky_v2.blend
-./render_all.sh /ruta/a/blender                             # Cycles -> out/f_0000.png… (reanudable)
-python3 composite.py                                        # fondo + Blender + FX + audio -> ../output/locky_entrada_choque_v2.mp4
+STEP=2 ./render_all.sh /ruta/a/blender                      # Cycles, 30 fps (cuadros pares) -> out/ (reanudable)
+STEP=2 python3 composite.py                                 # fondo + Blender + FX + audio -> ../output/locky_entrada_choque_v2.mp4
 ```
 
 Render: Cycles CPU, 24 spp adaptativo + OIDN, motion blur 0,5, película transparente con shadow catcher

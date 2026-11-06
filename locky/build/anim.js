@@ -23,7 +23,7 @@ const pz = (t) => t >= 0 ? zAt(t) : T.z0 + V0 * t;                // path, extra
 // ---------- walk cycle with planted feet (2-bone IK) ----------
 // Leg geometry from the GLB (glTF space, y up, +z forward): hip joint, thigh, shin, ankle height, ankle->ball.
 const LEG = { hipY: 0.270, hipZ: -0.006, L1: 0.082, L2: 0.141, ank: 0.047, ball: 0.109 };
-const DUTY = 0.56, LIFT = 0.05, ROLL = 0.5, SLAP = -0.15;
+const DUTY = 0.5, LIFT = 0.06, ROLL = 0.5, SLAP = -0.15;
 // ankle target for one foot (absolute path z), foot pitch psi (+ = toes down) and stance flag
 const footAt = (t, off) => {
   const W = T.stepRate / 2, c = t * W + off, k = Math.floor(c), f = c - k;
@@ -50,13 +50,15 @@ const legIK = (H, A) => {
   return { x: p1, k: p2 - p1, a: p2 - A.psi, toe: Math.max(0, A.psi) * (A.stance ? 1 : 0.4) };
 };
 
+// ---------- whistle (audio envelope -> mouth) ----------
+const whistleAt = (t) => { const W = window.WHISTLE; if (!W) return { amp: 0, pitch: 0, slow: 0 };
+  const at = (arr, tt) => { const f = cl(tt * W.fps, 0, arr.length - 1), i = Math.floor(f), u = f - i; return lerp(arr[i], arr[Math.min(arr.length - 1, i + 1)], u); };
+  let slow = 0; for (let d = -0.12; d <= 0.121; d += 0.03) slow = Math.max(slow, at(W.amp, t + d));
+  return { amp: at(W.amp, t), pitch: at(W.pitch, t), slow }; };
+
 // ---------- expressions ----------
 const EX = [
   [0.00, { 'Eyes_Joy': 1 }, { 'Mouth_O': 0.8 }],
-  [1.35, { 'Eyes_Joy': 1 }, { 'Mouth_U': 0.9 }],
-  [2.05, { 'Eyes_Joy': 1 }, { 'Mouth_O': 1.0 }],
-  [2.70, { 'Eyes_Joy': 1 }, { 'Mouth_U': 0.8 }],
-  [3.35, { 'Eyes_Joy': 1 }, { 'Mouth_O': 0.9 }],
   [T.whistleEnd + 0.05, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 0.7 }],
   [T.impact, { 'Eyes_ .> <.': 1 }, { 'Mouth_O': 1.0 }],
   [T.slideStart + 0.15, { 'Eyes_ T T': 1 }, { 'Mouth_Sad': 1 }],
@@ -73,6 +75,15 @@ const exprAt = (t) => {
   const w = {};
   const add = (o, k) => { for (const n in o) w[n] = (w[n] || 0) + o[n] * k; };
   add(prev[1], 1 - s); add(prev[2], 1 - s); add(cur[1], s); add(cur[2], s);
+  // whistling mouth: puckered lips (U) that tighten on louder / higher notes, small side pucker,
+  // open a touch (O) on attacks and relax into a smile between phrases
+  const wm = 1 - ss(T.whistleEnd - 0.05, T.whistleEnd + 0.1, t);
+  if (wm > 0) { const wh = whistleAt(t);
+    for (const k in w) if (k.startsWith('Mouth')) w[k] *= 1 - wm;
+    const pucker = 0.3 + 0.7 * wh.slow;
+    const sh = { 'Mouth_U': pucker * (0.55 + 0.3 * wh.amp + 0.15 * wh.pitch), 'Mouth_O': 0.35 * wh.slow * (1 - wh.amp) + 0.15 * (1 - wh.pitch) * wh.amp,
+                 'Mouth_Smirk L': 0.35 * wh.slow, 'Mouth_Joy': 0.55 * (1 - wh.slow) };
+    for (const k in sh) w[k] = (w[k] || 0) + sh[k] * wm; }
   const blinks = [T.peekStart + 0.13, T.peekStart + 0.41];
   let b = 0; blinks.forEach(bt => { b = Math.max(b, 1 - cl(Math.abs(t - bt) / 0.075)); });
   const open = 1 - cl((w['Eyes_Joy'] || 0) + (w['Eyes_ .> <.'] || 0) + (w['Eyes_ T T'] || 0) + (w['Eyes_Wink R'] || 0) + (w['Eyes_Fun'] || 0));
@@ -98,7 +109,7 @@ window.stateAt = (t, eng) => {
     x = lerp(-0.3, 0, sm(0, T.impact, t)) + 0.02 * Math.sin(t * 1.3);
     const lookAround = 0.42 * Math.sin(1.05 * t + 0.4) + 0.12 * Math.sin(2.3 * t);
     rotY = 0 + lookAround * 0.35;   // facing camera, head-in-the-clouds sway
-    hipsX = -0.30 + 0.03 * Math.cos(2 * phi);
+    hipsX = -0.30 + 0.045 * Math.cos(2 * phi);
     // feet: absolute path z -> root-local
     const fL = footAt(t, 0), fR = footAt(t, 0.5);
     fL.zl = fL.z - z; fR.zl = fR.z - z;
@@ -119,10 +130,14 @@ window.stateAt = (t, eng) => {
     Object.assign(legL, legIK(HL, fL), { roll: hipsZ }); Object.assign(legR, legIK(HR, fR), { roll: hipsZ });
     // arms swing against the legs (left arm back when the left foot lands)
     const cL = t * T.stepRate / 2;
-    armL.z = -0.34 * Math.cos(TAU * cL); armR.z = 0.34 * Math.cos(TAU * cL); armL.el = 0.35; armR.el = 0.35;
-    armL.x = -1.0; armR.x = -1.0;
+    armL.z = -0.5 * Math.cos(TAU * cL); armR.z = 0.5 * Math.cos(TAU * cL);
+    armL.el = 0.3 + 0.35 * Math.max(0, armL.z / 0.5); armR.el = 0.3 + 0.35 * Math.max(0, armR.z / 0.5);   // elbow bends on the forward swing
+    armL.x = -0.95 + 0.06 * Math.abs(Math.cos(TAU * cL)); armR.x = armL.x;
     const bounce = Math.cos(2 * phi);
-    sqScale = [1 - 0.015 * bounce, 1 + 0.022 * bounce, 1 - 0.015 * bounce];
+    sqScale = [1 - 0.03 * bounce, 1 + 0.045 * bounce, 1 - 0.03 * bounce];
+    // whistling: head goes up a bit on the loud notes and tilts with the melody
+    const wh = whistleAt(t);
+    hipsX += -0.06 * wh.amp; hipsZ += 0.05 * (wh.pitch - 0.5) * wh.amp;
 
     sqPivot = [x, 0, z];
   } else {
@@ -134,24 +149,31 @@ window.stateAt = (t, eng) => {
     const drop = 1.75 * Math.pow(g, 1.55);
     const sag = 0.035 * ss(T.impact + 0.15, T.slideStart, t);
     y = -sag - drop;
-    press = 0.145 * (1 - Math.exp(-ti / 0.016)) + 0.035 * wob(ti, 5.5, 8);
-    press = lerp(press, 0.115, ss(0.25, 0.6, ti));
+    // hit hard, bounce off the glass a few cm, get sucked back on and stick (with a little jelly settle)
+    const PRESS = [[0, 0], [0.035, 0.21], [0.10, 0.05], [0.165, -0.04], [0.26, 0.15], [0.36, 0.10], [0.48, 0.125], [0.62, 0.115]];
+    const kf = (pts, tt) => { if (tt >= pts[pts.length - 1][0]) return pts[pts.length - 1][1]; let i = 0; while (pts[i + 1][0] < tt) i++;
+      const [t0, v0] = pts[i], [t1, v1] = pts[i + 1]; return lerp(v0, v1, sm(t0, t1, tt)); };
+    press = kf(PRESS, ti) + 0.008 * wob(ti - 0.62, 5, 6);
     z = CONTACT + press;
     glassOn = true;
     const faceY = 0.73 + y;
     glassC = [x, faceY];
     const jig = wob(ti, 4.2, 6.5);
-    const w = 0.65 + 0.35 * Math.exp(-ti * 6) + 0.25 * jig;
+    // squash follows how hard he is pressed (flattened on the hit, slightly stretched while bouncing off)
+    const q = cl(press / 0.21, -0.25, 1), settle = 0.55 * ss(0.2, 0.6, ti);
+    const w = Math.max(q, settle) + 0.2 * jig * ss(0.2, 0.4, ti);
     sqPivot = [x, faceY, T.glassZ];
-    sqScale = [1 + 0.08 * w, 1 + 0.05 * w, 1 - 0.22 * w];
-    hipsX = 0.04; hipsZ = 0.04 * jig;
-    const fling = outBack(cl(ti / 0.12), 2.2);
-    armL.x = lerp(-0.6, 0.45, fling) + 0.12 * jig; armR.x = armL.x;
-    armL.z = lerp(0, 0.42, fling); armR.z = lerp(0, 0.42, fling);
-    armL.el = 0.2 + 0.2 * jig; armR.el = armL.el;
-    armL.x += 0.6 * ss(T.slideStart, T.slideEnd, t); armR.x = armL.x;
-    legL.x = -0.55 * fling + 0.15 * Math.sin(ti * 9); legR.x = -0.45 * fling - 0.15 * Math.sin(ti * 9 + 1);
-    legL.k = 0.9 * fling; legR.k = 0.8 * fling;
+    sqScale = [1 + 0.15 * w, 1 + 0.08 * w, 1 - 0.36 * w];
+    hipsX = 0.08; hipsZ = 0.04 * jig;
+    // starfish splat: arms and legs fly forward and flatten on the glass, then twitch
+    const fling = outBack(cl(ti / 0.09), 2.4);
+    armL.x = lerp(-0.95, 0.5, fling) + 0.12 * jig; armR.x = armL.x;
+    armL.z = lerp(0, 1.15, fling); armR.z = armL.z;
+    armL.el = lerp(0.4, 0.05, fling) + 0.15 * jig; armR.el = armL.el;
+    armL.x += 0.5 * ss(T.slideStart, T.slideEnd, t); armR.x = armL.x;
+    const kick = Math.exp(-ti * 3) * 0.18;
+    legL.x = -0.75 * fling + kick * Math.sin(ti * 11); legR.x = -0.65 * fling - kick * Math.sin(ti * 11 + 1.3);
+    legL.k = 0.35 * fling + 0.25 * Math.max(0, Math.sin(ti * 11)) * kick / 0.18; legR.k = 0.35 * fling;
     shadowA = 0;
     if (t > T.slideEnd + 0.05) visible = false;
 
@@ -208,7 +230,8 @@ window.stateAt = (t, eng) => {
   let camPos = [0, 1.0, 4.65 - 0.12 * ss(0, T.impact, t)];
   const target = [0, 0.72, 0];
   const ti = t - T.impact;
-  if (ti > 0) { const sh = Math.exp(-ti * 9) * 0.035; camPos = [camPos[0] + sh * Math.sin(ti * 83), camPos[1] + sh * Math.sin(ti * 67 + 1), camPos[2]]; }
+  if (ti > 0) { const sh = Math.exp(-ti * 10) * 0.06; camPos = [camPos[0] + sh * Math.sin(ti * 83), camPos[1] + sh * Math.sin(ti * 67 + 1), camPos[2]];
+    camPos[2] -= 0.16 * ss(0, 0.035, ti) * (1 - ss(0.06, 0.45, ti)); }   // punch-in on the hit
   const endEase = ss(T.peekStart - 0.2, T.peekStart + 1.0, t);
   camPos[2] += 0.12 * endEase;
 
@@ -225,8 +248,8 @@ window.stateAt = (t, eng) => {
 // ---------- 2D overlay: glass FX ----------
 const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 window.drawOverlay = (t, st, eng, cv) => {
+  cv.width = cv.width;            // full reset: clearRect left the previous frames' FX behind
   const c = cv.getContext('2d'); const W = cv.width, H = cv.height;
-  c.clearRect(0, 0, W, H);
   const ti = t - T.impact;
   if (ti > 0) {
     const p0 = eng.project([0, 0.73, T.glassZ]);

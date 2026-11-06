@@ -12,6 +12,7 @@ OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / 'output'
 SR = 48000
 DUR = TL['dur'] + 0.4
 mix = np.zeros((int(SR * DUR), 2))
+wst = np.zeros_like(mix)          # whistle stem -> drives the mouth (build/whistle_env.js)
 
 def load(name, rate=1.0):
     """decode mp3 -> float stereo @SR (rate > 1 = pitched up / shorter)"""
@@ -43,16 +44,17 @@ def first_event(x, tail=0.6):
     s, e = segments(x)[0]
     return clip(x, max(0, s / SR - 0.002), (e - s) / SR + tail)
 
-def put(y, t, gain=1.0, pan=0.0):
+def put(y, t, gain=1.0, pan=0.0, stem=None):
     i = int(t * SR); n = min(len(y), len(mix) - i)
     if n <= 0: return
     l, r = np.cos((pan + 1) * np.pi / 4) * 1.4142, np.sin((pan + 1) * np.pi / 4) * 1.4142
-    mix[i:i + n, 0] += y[:n, 0] * gain * l; mix[i:i + n, 1] += y[:n, 1] * gain * r
+    for buf in (mix,) + ((stem,) if stem is not None else ()):
+        buf[i:i + n, 0] += y[:n, 0] * gain * l; buf[i:i + n, 1] += y[:n, 1] * gain * r
 
 def norm(y, peak=1.0): return y * (peak / max(1e-9, np.abs(y).max()))
 
 # ---- footsteps: slice the recorded steps and lay one on every step of the walk cycle ----
-st = load('steps_a'); steps = [norm(clip(st, s / SR, (e - s) / SR + 0.04, 0.001, 0.03)) for s, e in segments(st)]
+st = load('steps_a'); steps = [norm(clip(st, s / SR, min(0.13, (e - s) / SR + 0.04), 0.001, 0.03)) for s, e in segments(st)]   # short: fast steps
 k = 1
 while k / TL['stepRate'] < TL['impact'] - 0.05:
     ts = k / TL['stepRate']; prox = ts / TL['impact']
@@ -64,7 +66,7 @@ for name, rate in parts:
     if t >= w_end - 0.2: break
     x = load(name, rate); segs = segments(x); s = segs[0][0] / SR; e = segs[-1][1] / SR
     y = clip(x, s, min(e - s, w_end - t), 0.01, 0.06)
-    put(norm(y), t, 0.10 + 0.14 * (t / TL['impact']) ** 1.3, -0.1); t += len(y) / SR + 0.04
+    put(norm(y), t, 0.10 + 0.14 * (t / TL['impact']) ** 1.3, -0.1, stem=wst); t += len(y) / SR + 0.04
 
 # ---- impact: plonk (first hit only) ----
 put(norm(first_event(load('plonk_a'), 0.7)), TL['impact'] - 0.005, 0.95)
@@ -82,6 +84,22 @@ put(norm(first_event(load('boop_a'), 0.2)), TL['peekStart'] + 0.12, 0.40)
 put(norm(clip(load('giggle_a'), 0.0, 1.1, 0.005, 0.25)), TL['embarrassed'], 0.42, -0.05)
 put(norm(first_event(load('sparkle_a'), 0.4)), TL['waveStart'] + 0.06, 0.30, -0.3)
 put(norm(first_event(load('ting_b'), 0.6)), TL['wink'] + 0.05, 0.35, 0.2)
+
+# ---- whistle envelope + pitch per 60 fps frame -> mouth animation ----
+mono = wst.mean(1); hop = SR // 60; nf = int(TL['dur'] * 60) + 1; amp = np.zeros(nf); pit = np.zeros(nf)
+win = np.hanning(2048)
+for f in range(nf):
+    c = f * hop; seg = mono[max(0, c - 1024):c + 1024]
+    if len(seg) < 2048: seg = np.pad(seg, (0, 2048 - len(seg)))
+    amp[f] = np.sqrt(np.mean(seg ** 2))
+    sp = np.abs(np.fft.rfft(seg * win)); fr = np.fft.rfftfreq(2048, 1 / SR); band = (fr > 700) & (fr < 4000)
+    pit[f] = fr[band][np.argmax(sp[band])] if amp[f] > 1e-4 else 0
+amp = amp / max(1e-9, amp.max()); amp = np.clip((amp - 0.08) / 0.6, 0, 1)
+voiced = pit[amp > 0.2]; lo, hi = (np.percentile(voiced, 10), np.percentile(voiced, 90)) if len(voiced) else (1, 2)
+pn = np.where(amp > 0.05, np.clip((pit - lo) / max(1, hi - lo), 0, 1), 0)
+ENV = HERE.parent / 'build' / 'whistle_env.js'
+ENV.write_text('window.WHISTLE = ' + json.dumps({'fps': 60, 'amp': [round(float(v), 3) for v in amp], 'pitch': [round(float(v), 3) for v in pn]}) + ';\n')
+print('wrote', ENV)
 
 # ---- master: short room taps, fade, soft clip, normalise ----
 out = mix.copy()

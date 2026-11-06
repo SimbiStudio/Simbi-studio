@@ -6,6 +6,7 @@ const fs = require('fs'), path = require('path');
 const B = path.join(__dirname, '..', 'build');
 global.window = global;
 eval(fs.readFileSync(path.join(B, 'timeline.js'), 'utf8'));
+eval(fs.readFileSync(path.join(B, 'whistle_env.js'), 'utf8'));
 eval(fs.readFileSync(path.join(B, 'engine.js'), 'utf8').replace(/class Engine[\s\S]*$/, 'window.M=M;window.Q=Q;window.V=V;'));
 eval(fs.readFileSync(path.join(B, 'anim.js'), 'utf8'));
 
