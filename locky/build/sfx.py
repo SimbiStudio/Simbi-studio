@@ -1,5 +1,9 @@
-import json, re, wave, numpy as np
-TL = json.loads(re.sub(r'^window\.TL\s*=\s*', '', open('/home/claude/build/timeline.js').read()))
+# Placeholder SFX synthesised with numpy (the ElevenLabs version lives in ../audio/).
+# usage: python3 sfx.py [out.wav]   (default ../output/locky_sfx_v2.wav)
+import json, re, sys, wave, pathlib, numpy as np
+HERE = pathlib.Path(__file__).resolve().parent
+TL = json.loads(re.sub(r'^window\.TL\s*=\s*', '', (HERE / 'timeline.js').read_text()))
+OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / 'output' / 'locky_sfx_v2.wav'
 SR = 48000; DUR = TL['dur'] + 0.4
 L = np.zeros(int(SR * DUR)); R = np.zeros_like(L)
 rng = np.random.default_rng(7)
@@ -34,10 +38,10 @@ while k / rate < TL['impact'] - 0.02:
 # ---- whistling while strolling ----
 notes = [(0.15, 79), (0.42, 76), (0.62, 79), (0.95, 81), (1.2, 79), (1.38, 76), (1.62, 74), (1.95, 76),
          (2.2, 79), (2.4, 83), (2.62, 81), (2.85, 79)]
-wt = tt(TL['turnStart'] + 0.05)
+wt = tt(TL['whistleEnd'] + 0.05)
 freq = np.zeros_like(wt); amp = np.zeros_like(wt)
 for i, (st, m) in enumerate(notes):
-    en = notes[i + 1][0] if i + 1 < len(notes) else TL['turnStart'] - 0.02
+    en = notes[i + 1][0] if i + 1 < len(notes) else TL['whistleEnd'] - 0.02
     f0 = 440 * 2 ** ((m - 69) / 12)
     sel = (wt >= st) & (wt < en)
     u = (wt[sel] - st)
@@ -51,11 +55,6 @@ amp = lp(amp, 0.01)
 whistle = np.sin(sweep(freq * vib, wt)) * amp + 0.06 * bp_noise(len(wt) / SR, 0.2, 0.5)[:len(wt)] * amp
 dist = np.clip(wt / TL['impact'], 0, 1)
 put(whistle * (0.08 + 0.16 * dist ** 1.3), 0.0, 1.0, -0.1)
-
-# ---- whoosh on the spin ----
-d = TL['turnEnd'] - TL['turnStart'] + 0.12; t = tt(d)
-wh = bp_noise(d, 0.02, 0.25) * np.sin(np.pi * np.clip(t / d, 0, 1)) ** 2
-put(wh, TL['turnStart'] - 0.04, 0.22, 0.3)
 
 # ---- PLONK ----
 t = tt(1.2)
@@ -95,22 +94,7 @@ def bell(f0, d=0.9):
 for i, m in enumerate([84, 88, 91, 96]):
     put(bell(440 * 2 ** ((m - 69) / 12)), TL['waveStart'] + 0.06 + i * 0.06, 0.07, -0.4 + i * 0.1)
 
-# ---- logo: slide whistle down, then boings ----
-d = TL['logoLand'] - TL['logoDrop']; t = tt(d)
-f = 1700 * (500 / 1700) ** (t / d)
-put(np.sin(sweep(f * (1 + 0.01 * np.sin(2 * np.pi * 6 * t)), t)) * np.minimum(1, t / 0.04) * 0.9, TL['logoDrop'], 0.10)
-fallH = 205 + 260; g = 2 * fallH / d ** 2; c = TL['logoLand']; v = g * d * 0.42
-contacts = [(c, 1.0)]
-for q in range(3): c += 2 * v / g; contacts.append((c, 0.42 ** (q + 1))); v *= 0.38
-for i, (ct, a) in enumerate(contacts):
-    t = tt(0.6)
-    bf = (150 + 40 * i) * (1 + 0.35 * np.exp(-t * 8) * np.sin(2 * np.pi * 11 * t)) * (1 + 0.6 * np.exp(-t * 25))
-    boing = np.sin(sweep(bf, t)) * env(t, 0.002, 0.16)
-    thud = np.sin(sweep(60 + 80 * np.exp(-t * 35), t)) * env(t, 0.001, 0.05)
-    put(boing * 0.7 + thud * 0.6, ct, 0.5 * a ** 0.8)
-# settle sparkle + wink ting
-for i, m in enumerate([93, 96, 100]):
-    put(bell(440 * 2 ** ((m - 69) / 12), 1.2), contacts[-1][0] + 0.06 + i * 0.08, 0.06, 0.3 - i * 0.3)
+# ---- wink 'ting' ----
 put(bell(440 * 2 ** ((101 - 69) / 12), 1.2), TL['wink'] + 0.05, 0.09, 0.2)
 
 # ---- master ----
@@ -124,6 +108,7 @@ out *= fade[:, None]
 out = np.tanh(out * 1.1) / np.tanh(1.1)
 out *= 0.89 / np.abs(out).max()
 pcm = (out * 32767).astype(np.int16)
-with wave.open('/home/claude/out/locky_sfx.wav', 'wb') as w:
+OUT.parent.mkdir(parents=True, exist_ok=True)
+with wave.open(str(OUT), 'wb') as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())
-print('ok', len(pcm) / SR)
+print('wrote', OUT, len(pcm) / SR, 's')

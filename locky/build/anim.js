@@ -15,17 +15,8 @@ const qm = (...qs) => qs.reduce((a, b) => Q.mul(a, b));
 
 const T = window.TL;
 const CONTACT = T.glassZ - 0.235;          // hips z at the moment the face touches the glass
-const ZW = 1.72;                           // z at end of backward walk
-const V0 = (ZW - T.z0) / T.walkEnd;
-
-// precompute root z for the walk/turn/approach
-const zTab = (() => { const dt = 1 / 1200, out = []; let z = T.z0;
-  for (let t = 0; t <= T.turnEnd + 1e-9; t += dt) { out.push(z);
-    let v = V0; if (t > T.turnStart) v = lerp(V0, 0.55, ss(T.turnStart, T.turnEnd, t)); z += v * dt; }
-  return { dt, out }; })();
-const zAt = (t) => { if (t <= T.turnEnd) { const i = Math.min(zTab.out.length - 1, Math.max(0, Math.round(t / zTab.dt))); return zTab.out[i]; }
-  const z1 = zTab.out[zTab.out.length - 1]; const u = cl((t - T.turnEnd) / (T.impact - T.turnEnd));
-  return lerp(z1, CONTACT, 0.55 * u + 0.45 * u * u); };
+// forward walk z0 -> glass: steady stroll, a hair faster in the last steps (he never sees it coming)
+const zAt = (t) => { const u = cl(t / T.impact); return lerp(T.z0, CONTACT, 0.9 * u + 0.1 * u * u); };
 
 // ---------- expressions ----------
 const EX = [
@@ -33,56 +24,33 @@ const EX = [
   [1.35, { 'Eyes_Joy': 1 }, { 'Mouth_U': 0.9 }],
   [2.05, { 'Eyes_Joy': 1 }, { 'Mouth_O': 1.0 }],
   [2.70, { 'Eyes_Joy': 1 }, { 'Mouth_U': 0.8 }],
-  [3.35, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 0.7 }],
+  [T.whistleEnd + 0.05, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 0.7 }],
   [T.impact, { 'Eyes_ .> <.': 1 }, { 'Mouth_O': 1.0 }],
-  [4.55, { 'Eyes_ T T': 1 }, { 'Mouth_Sad': 1 }],
+  [T.slideStart + 0.15, { 'Eyes_ T T': 1 }, { 'Mouth_Sad': 1 }],
   [T.peekStart, { 'Eyes_ O O': 0.0 }, { 'Mouth_I': 0.6 }],
   [T.embarrassed, { 'Eyes_ .> <.': 1 }, { 'Mouth_Smirk L': 1 }],
   [T.waveStart + 0.05, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 1 }],
-  [T.logoLand, { 'Eyes_ O O': 1 }, { 'Mouth_O': 0.9 }],
-  [T.lookUp, { 'Eyes_Fun': 0.0 }, { 'Mouth_Joy': 0.8 }],
   [T.wink, { 'Eyes_Wink R': 1 }, { 'Mouth_Joy': 1 }],
 ];
 const exprAt = (t) => {
   let i = 0; while (i < EX.length - 1 && EX[i + 1][0] <= t) i++;
   const cur = EX[i], prev = EX[Math.max(0, i - 1)];
-  const fade = (cur[0] === T.impact || cur[0] === T.logoLand) ? 0.035 : 0.09;
+  const fade = (cur[0] === T.impact) ? 0.035 : 0.09;
   const s = i === 0 ? 1 : sm(cur[0], cur[0] + fade, t);
   const w = {};
   const add = (o, k) => { for (const n in o) w[n] = (w[n] || 0) + o[n] * k; };
   add(prev[1], 1 - s); add(prev[2], 1 - s); add(cur[1], s); add(cur[2], s);
-  const blinks = [5.98, 6.26, 7.38, 8.42, 9.5];
+  const blinks = [T.peekStart + 0.13, T.peekStart + 0.41];
   let b = 0; blinks.forEach(bt => { b = Math.max(b, 1 - cl(Math.abs(t - bt) / 0.075)); });
   const open = 1 - cl((w['Eyes_Joy'] || 0) + (w['Eyes_ .> <.'] || 0) + (w['Eyes_ T T'] || 0) + (w['Eyes_Wink R'] || 0) + (w['Eyes_Fun'] || 0));
   if (b > 0) w['Eyes_Close'] = (w['Eyes_Close'] || 0) + b * open;
   return w;
 };
 
-// ---------- logo physics ----------
-const LOGO_Y = 205, LOGO_START = -260;
-const logoContacts = () => { const fallH = LOGO_Y - LOGO_START, tF = T.logoLand - T.logoDrop, g = 2 * fallH / (tF * tF);
-  const out = [[T.logoLand, 1]]; let c = T.logoLand, v = g * tF * 0.42; for (let q = 0; q < 3; q++) { c += 2 * v / g; out.push([c, Math.pow(0.42, q + 1)]); v *= 0.38; } return out; };
-window.LOGO_CONTACTS = logoContacts();
-const logoAt = (t) => {
-  if (t < T.logoDrop) return { y: LOGO_START, sx: 1, sy: 1, vis: false };
-  const fallH = LOGO_Y - LOGO_START, tFall = T.logoLand - T.logoDrop;
-  const g = 2 * fallH / (tFall * tFall);
-  let y, sx = 1, sy = 1;
-  if (t < T.logoLand) { const u = t - T.logoDrop; y = LOGO_START + 0.5 * g * u * u;
-    const v = g * u; const st = cl(v / 5000) * 0.18; sy = 1 + st; sx = 1 - st * 0.5; }
-  else {
-    const v0 = g * tFall; let tt = t - T.logoLand, v = v0 * 0.42, k = 0; y = LOGO_Y;
-    while (k < 4) { const dur = 2 * v / g; if (tt < dur) { y = LOGO_Y - (v * tt - 0.5 * g * tt * tt); break; } tt -= dur; v *= 0.38; k++; }
-    let sq = 0; window.LOGO_CONTACTS.forEach(([ct, a]) => { if (t >= ct - 0.012) sq += 0.34 * a * wob(t - ct + 0.012, 4.5, 11); });
-    sy = 1 - sq; sx = 1 + sq * 0.7;
-  }
-  return { y, sx, sy, vis: true };
-};
-
 // ---------- main pose ----------
 window.stateAt = (t, eng) => {
   const B = {}; const S = {};
-  let x = 0, y = 0, z = T.z0, rotY = PI, visible = true;
+  let x = 0, y = 0, z = T.z0, rotY = 0, visible = true;
   let hipsX = 0, hipsZ = 0, hipsY = 0;
   let sqPivot = [0, 0, 0], sqScale = [1, 1, 1];
   let glassOn = false, glassC = [0, 0.72];
@@ -94,36 +62,21 @@ window.stateAt = (t, eng) => {
   if (walking) {
     const phi = TAU * (T.stepRate / 2) * t;
     z = zAt(t);
-    x = lerp(-0.55, 0, sm(0, T.walkEnd + 0.3, t)) + 0.04 * Math.sin(t * 1.3);
+    x = lerp(-0.55, 0, sm(0, T.impact, t)) + 0.04 * Math.sin(t * 1.3);
     const lookAround = 0.42 * Math.sin(1.05 * t + 0.4) + 0.12 * Math.sin(2.3 * t);
-    rotY = PI + lookAround;
+    rotY = 0 + lookAround * 0.5;   // facing camera, head-in-the-clouds sway
     const s = Math.sin(phi), c = Math.cos(phi);
     const amp = 0.62;
-    legL.x = -amp * s; legR.x = amp * s;
-    legL.k = 0.9 * Math.max(0, -c); legR.k = 0.9 * Math.max(0, c);
+    legL.x = amp * s; legR.x = -amp * s;
+    legL.k = 0.9 * Math.max(0, c); legR.k = 0.9 * Math.max(0, -c);
     hipsY = 0.028 * Math.abs(Math.sin(phi)) - 0.01;
     hipsZ = 0.075 * s;
     hipsX = -0.30 + 0.03 * Math.cos(2 * phi);
-    armL.z = 0.38 * s; armR.z = -0.38 * s; armL.el = 0.35; armR.el = 0.35;
+    armL.z = -0.38 * s; armR.z = 0.38 * s; armL.el = 0.35; armR.el = 0.35;
     armL.x = -1.0; armR.x = -1.0;
     const bounce = Math.cos(2 * phi);
     sqScale = [1 - 0.022 * bounce, 1 + 0.035 * bounce, 1 - 0.022 * bounce];
 
-    if (t > T.turnStart - 0.18) {
-      const ant = ss(T.turnStart - 0.18, T.turnStart, t) * (1 - ss(T.turnStart, T.turnStart + 0.1, t));
-      const u = cl((t - T.turnStart) / (T.turnEnd - T.turnStart));
-      const r0 = PI + 0.42 * Math.sin(1.05 * T.turnStart + 0.4) + 0.12 * Math.sin(2.3 * T.turnStart);
-      const target = r0 > PI ? TAU : 0;
-      rotY = lerp(rotY, lerp(r0, target, outBack(u, 1.4)), ss(T.turnStart - 0.02, T.turnStart + 0.02, t));
-      const stretch = Math.sin(PI * u) * 0.07;
-      sqScale = [sqScale[0] * (1 + 0.06 * ant - stretch * 0.5), sqScale[1] * (1 - 0.09 * ant + stretch), sqScale[2] * (1 + 0.06 * ant - stretch * 0.5)];
-      hipsX = lerp(hipsX, -0.16, ss(T.turnStart, T.turnEnd, t));
-      armL.x = lerp(-1.0, -0.6, Math.sin(PI * u)); armR.x = armL.x;
-      if (t > T.turnEnd) {
-        legL.x = amp * s; legR.x = -amp * s; legL.k = 0.9 * Math.max(0, c); legR.k = 0.9 * Math.max(0, -c);
-        armL.z = -0.38 * s; armR.z = 0.38 * s;
-      }
-    }
     sqPivot = [x, 0, z];
   } else {
     const ti = t - T.impact;
@@ -164,28 +117,28 @@ window.stateAt = (t, eng) => {
       y = lerp(-1.25, -0.30, rise1) + lerp(0, 0.18, rise2);
       hipsZ = lerp(0, 0.16, ss(0, 0.35, tp)) * (1 - ss(T.embarrassed - 0.05, T.embarrassed + 0.2, t))
         + lerp(0, -0.10, ss(T.embarrassed - 0.05, T.embarrassed + 0.2, t)) * (1 - ss(T.waveStart, T.waveStart + 0.3, t))
-        + 0.06 * Math.sin((t - T.waveStart) * TAU * 1.6) * ss(T.waveStart, T.waveStart + 0.3, t) * (1 - ss(T.lookUp - 0.1, T.lookUp + 0.1, t));
+        + 0.06 * Math.sin((t - T.waveStart) * TAU * 1.6) * ss(T.waveStart, T.waveStart + 0.3, t) * (1 - ss(T.waveDown - 0.1, T.waveDown + 0.1, t));
       const emb = ss(T.embarrassed - 0.03, T.embarrassed + 0.12, t) * (1 - ss(T.waveStart - 0.1, T.waveStart + 0.15, t));
       const shy = wob(t - T.embarrassed, 3.5, 6) * 0.04 * (t > T.embarrassed ? 1 : 0);
       sqPivot = [x, y, z];
       sqScale = [1 + 0.035 * emb + shy, 1 - 0.05 * emb - shy, 1 + 0.035 * emb];
       armL.x = -1.12 + 0.35 * emb; armR.x = armL.x; armL.el = 0.4 + 0.8 * emb; armR.el = armL.el;
       armL.z = 0.3 * emb; armR.z = 0.3 * emb;
-      const wv = ss(T.waveStart, T.waveStart + 0.22, t) * (1 - ss(T.lookUp - 0.15, T.lookUp + 0.15, t));
+      const wv = ss(T.waveStart, T.waveStart + 0.22, t) * (1 - ss(T.waveDown - 0.15, T.waveDown + 0.15, t));
       const wv2 = ss(T.wink - 0.1, T.wink + 0.15, t);
       const wave = Math.max(wv, wv2 * 0.8);
       armR.x = lerp(armR.x, 0.75, wave);
       armR.z = lerp(armR.z, 0.15, wave);
       armR.el = lerp(armR.el, 0.35 + 0.42 * Math.sin((t - T.waveStart) * TAU * 2.6), wave);
-      const lt = t - T.logoLand;
-      if (lt > 0) {
-        const fl = wob(lt, 3.2, 7);
-        y += 0.06 * Math.max(0, Math.sin(PI * cl(lt / 0.28)));
-        sqScale = [sqScale[0] * (1 - 0.06 * fl), sqScale[1] * (1 + 0.09 * fl), sqScale[2] * (1 - 0.06 * fl)];
-        armL.x = lerp(armL.x, -0.2, Math.max(0, fl) * 0.6);
+      // closing beat (no logo any more): little hop + head tilt into the wink
+      const wk = t - T.wink;
+      if (wk > 0) {
+        const fl = wob(wk, 3.2, 7);
+        y += 0.06 * Math.max(0, Math.sin(PI * cl(wk / 0.28)));
+        sqScale = [sqScale[0] * (1 - 0.05 * fl), sqScale[1] * (1 + 0.08 * fl), sqScale[2] * (1 - 0.05 * fl)];
       }
-      const look = ss(T.lookUp - 0.12, T.lookUp + 0.18, t) * (1 - ss(T.wink - 0.25, T.wink - 0.02, t));
-      hipsX = -0.34 * look;
+      hipsZ += -0.09 * ss(T.wink - 0.1, T.wink + 0.25, t);
+      hipsX = 0.05 * ss(T.wink - 0.1, T.wink + 0.25, t);
       legL.x = 0; legR.x = 0; legL.k = 0; legR.k = 0;
       const br = Math.sin(t * TAU * 0.9) * 0.012;
       sqScale = [sqScale[0] - br * 0.5, sqScale[1] + br, sqScale[2] - br * 0.5];
@@ -210,7 +163,6 @@ window.stateAt = (t, eng) => {
   if (ti > 0) { const sh = Math.exp(-ti * 9) * 0.035; camPos = [camPos[0] + sh * Math.sin(ti * 83), camPos[1] + sh * Math.sin(ti * 67 + 1), camPos[2]]; }
   const endEase = ss(T.peekStart - 0.2, T.peekStart + 1.0, t);
   camPos[2] += 0.12 * endEase;
-  const lt = t - T.logoLand; if (lt > 0) camPos[1] += Math.exp(-lt * 10) * 0.012 * Math.sin(lt * 70);
 
   return {
     bg: BG, cam: { pos: camPos, target, fov: 32 },
@@ -222,7 +174,7 @@ window.stateAt = (t, eng) => {
   };
 };
 
-// ---------- 2D overlay: glass FX + logo ----------
+// ---------- 2D overlay: glass FX ----------
 const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 window.drawOverlay = (t, st, eng, cv) => {
   const c = cv.getContext('2d'); const W = cv.width, H = cv.height;
@@ -259,19 +211,5 @@ window.drawOverlay = (t, st, eng, cv) => {
         c.save(); c.globalAlpha = Math.sin(a) > 0 ? 1 : 0.75; c.translate(sx, sy); c.rotate(a * 0.8); c.fillStyle = '#ffd84a';
         c.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? sz * 0.42 : sz; const aa = k * PI / 5 - PI / 2; c.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); }
         c.closePath(); c.fill(); c.restore(); } }
-  }
-  const L = logoAt(t);
-  if (L.vis) {
-    c.save(); c.translate(W / 2, L.y + 70); c.scale(L.sx, L.sy); c.translate(0, -70);
-    c.font = '900 168px "Inter Display"'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-    const txt = 'loomlock';
-    c.fillStyle = 'rgba(20,22,110,0.35)'; c.fillText(txt, 0, 70 + 12);
-    c.fillStyle = '#ffffff'; c.fillText(txt, 0, 70);
-    c.restore();
-    const sp = t - (window.LOGO_CONTACTS[3][0] + 0.05);
-    if (sp > 0 && sp < 0.7) { const pts = [[-370, -10], [395, -40], [300, 95], [-250, 105]];
-      pts.forEach(([px, py], i) => { const tt = sp - i * 0.08; if (tt < 0 || tt > 0.45) return; const k = Math.sin(PI * tt / 0.45);
-        c.save(); c.translate(W / 2 + px, LOGO_Y + py); c.rotate(tt * 3); c.fillStyle = '#ffffff'; c.globalAlpha = k;
-        const s = 26 * k; c.beginPath(); c.moveTo(0, -s); c.quadraticCurveTo(0, 0, s, 0); c.quadraticCurveTo(0, 0, 0, s); c.quadraticCurveTo(0, 0, -s, 0); c.quadraticCurveTo(0, 0, 0, -s); c.fill(); c.restore(); }); }
   }
 };

@@ -1,0 +1,15 @@
+{
+  "source": "ElevenLabs Creative, model eleven_text_to_sound_v2 (prompt influence 0.3), flow 'Locky - El choque SFX v2' (5mat2HkrkolvvgDqtC6w)",
+  "used_in_mix": ["plonk_a", "steps_a", "whistle_a", "whistle_b", "squeak_a", "thud_a", "boop_a", "giggle_a", "sparkle_a", "ting_b"],
+  "takes": {
+    "plonk":   {"cue": "impact",           "prompt": "Cartoon character face smacking into a window pane, hollow rubbery plonk with a falling pitch, short glass ting", "a": "xTXghQxQ57uw4OxBk0zf", "b": "LM1GfNIKOwyeeXW2USV9"},
+    "steps":   {"cue": "every step 0..impact", "prompt": "Small cartoon character walking briskly, soft squeaky rubber footsteps on a hard floor, quick steady pace, close-mic", "a": "ftLehtAvbPgMNGXqwno5", "b": "8xCImr4i0Nmncn5AfhTU"},
+    "whistle": {"cue": "0..whistleEnd",    "prompt": "Person whistling a cheerful carefree little tune, bright and bouncy, dry close-mic", "a": "gkl28yaqsuMYFXrXxVar", "b": "85B6W7sxSh0bmBheosoh"},
+    "squeak":  {"cue": "slideStart..slideEnd", "prompt": "Rubber squeaking down a wet window pane in short stuttering jerks, high-pitched comedic squeal, one second", "a": "EoFiovOkatRjvizYNNh0", "b": "WXFsm1HhbYOgKRmgxLtV"},
+    "thud":    {"cue": "slideEnd",         "prompt": "Small soft body flopping onto a cushioned floor, muffled low cartoon thud", "a": "ZcuUA7W78xRSul2BDXZ3", "b": "UfLtCxByNyQOKvp1cfhf"},
+    "boop":    {"cue": "peekStart",        "prompt": "Cute cartoon pop-up boop, quick rising tone, soft and round", "a": "NOOH4z5diUsSe05X9Dq6", "b": "jCF87sylrH1rqFrEnCuA"},
+    "giggle":  {"cue": "embarrassed",      "prompt": "Tiny cute cartoon creature giggling shyly, three short high-pitched embarrassed hehehe, no words", "a": "53NVR5x4ThjbIvq02HyQ", "b": "dKWJ2HY9QcKzeTwTHFX1"},
+    "sparkle": {"cue": "waveStart",        "prompt": "Magical sparkle chime, quick ascending glockenspiel twinkle, bright and short", "a": "pTiOcPNgO2O55gN1XsAm"},
+    "ting":    {"cue": "wink",             "prompt": "Cartoon wink ting, single clean high bell ping with a soft shimmer tail", "a": "xo446qXtk6y9OnHuAQXR", "b": "Wyc5VcrhlokWDGwhirae"}
+  }
+}
