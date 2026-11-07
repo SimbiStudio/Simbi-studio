@@ -224,7 +224,8 @@ class Engine {
     this.Jsh = null;
     if (pose.shackle) { const P = [0, 1.0, 0], nk = this.joints.findIndex(ji => this.nodes[ji].name === 'neutral_bone');
       const R = M.mul(M.mul(M.trs(P, [0,0,0,1], [1,1,1]), M.trs([0,0,0], pose.shackle, [1,1,1])), M.trs([-P[0], -P[1], -P[2]], [0,0,0,1], [1,1,1]));
-      this.Jsh = new Float32Array(out); this.Jsh.set(M.mul(jm[hipsIdx], R), nk * 16); }
+      const chK = this.joints.findIndex(ji => this.nodes[ji].name === 'Chest');
+      this.Jsh = new Float32Array(out); this.Jsh.set(M.mul(jm[chK], R), nk * 16); }   // shackle rides on the chest (spine bends)
     return out;
   }
 

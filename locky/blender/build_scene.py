@@ -32,7 +32,8 @@ for o in list(sc.objects):
     if o.type == 'MESH' and o.parent is None:      # importer's bone-shape icosphere
         bpy.data.objects.remove(o)
 meshes = [o for o in sc.objects if o.type == 'MESH']
-body_parts = [o for o in meshes if o.name in ('LockyBody', 'ShackleMinus')]
+# rigid parts (no skin): the shackle. LockyBody is skinned to Hips/Spine/Chest since the rig fix.
+body_parts = [o for o in meshes if o.name in ('LockyBody', 'ShackleMinus') and not any(m.type == 'ARMATURE' for m in o.modifiers)]
 
 # rigid body + shackle follow Hips (as in Engine.computeJoints). The v1 engine ignores their glTF node
 # transform (x2.162 scale + offset) and draws the raw vertices, which is what lines up with eyes/mouth.
@@ -41,11 +42,11 @@ body_parts = [o for o in meshes if o.name in ('LockyBody', 'ShackleMinus')]
 bpy.context.view_layer.objects.active = arm
 bpy.ops.object.mode_set(mode='EDIT')
 eb = arm.data.edit_bones.new('Shackle'); eb.head = (0, 0, 1.0); eb.tail = (0, 0, 1.2); eb.roll = 0
-eb.parent = arm.data.edit_bones['Hips']; eb.use_connect = False
+eb.parent = arm.data.edit_bones['Chest']; eb.use_connect = False   # shackle rides on the chest (spine bends)
 bpy.ops.object.mode_set(mode='OBJECT')
 for o in body_parts:
     mw = arm.matrix_world.copy()
-    o.parent = arm; o.parent_type = 'BONE'; o.parent_bone = 'Shackle' if o.name == 'ShackleMinus' else 'Hips'
+    o.parent = arm; o.parent_type = 'BONE'; o.parent_bone = 'Shackle' if o.name == 'ShackleMinus' else 'Chest'
     o.matrix_world = mw
 
 # squash & stretch: armature hangs from an empty placed at the squash pivot

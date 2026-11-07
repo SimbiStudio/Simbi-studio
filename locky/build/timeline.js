@@ -1,8 +1,8 @@
 window.TL = {
   "dur": 12.3,
   "glassZ": 2.75,
-  "z0": -1.0,
-  "stepRate": 6.0,
+  "z0": -0.8,
+  "stepRate": 5.4,
   "whistleEnd": 2.85,
   "impact": 3.2,
   "slideStart": 3.88,

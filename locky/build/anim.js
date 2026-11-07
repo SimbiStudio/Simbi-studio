@@ -110,7 +110,7 @@ window.stateAt = (t, eng) => {
   let glassOn = false, glassC = [0, 0.72];
   const armL = { x: -1.12, z: 0, el: 0.15 }, armR = { x: -1.12, z: 0, el: 0.15 };
   const legL = { x: 0, k: 0 }, legR = { x: 0, k: 0 };
-  let shadowA = 0.55, press = 0, shPitch = 0, shRoll = 0;
+  let shadowA = 0.55, press = 0, shPitch = 0, shRoll = 0, spX = 0, spZ = 0, chX = 0, chZ = 0;   // spine / chest bend
 
   const walking = t < T.impact;
   if (walking) {
@@ -119,7 +119,8 @@ window.stateAt = (t, eng) => {
     x = lerp(-0.3, 0, sm(0, T.impact, t)) + 0.02 * Math.sin(t * 1.3);
     const lookAround = 0.42 * Math.sin(1.05 * t + 0.4) + 0.12 * Math.sin(2.3 * t);
     rotY = 0 + lookAround * 0.35;   // facing camera, head-in-the-clouds sway
-    hipsX = -0.30 + 0.025 * Math.cos(2 * phi);
+    hipsX = -0.08 + 0.02 * Math.cos(2 * phi);
+    spX = -0.11; chX = -0.11 + 0.025 * Math.sin(TAU * T.stepRate * t - 1.2);   // arc back (nose to the sky), chest lags the bob
     // feet: absolute path z -> root-local
     const fL = footS(t, 0), fR = footS(t, 0.5);
     fL.zl = fL.z - z; fR.zl = fR.z - z;
@@ -141,24 +142,25 @@ window.stateAt = (t, eng) => {
     // arms swing against the legs (left arm back when the left foot lands)
     const cL = t * T.stepRate / 2;
     armL.z = -0.38 * Math.cos(TAU * cL); armR.z = 0.38 * Math.cos(TAU * cL);
-    armL.el = 0.3 + 0.25 * Math.max(0, armL.z / 0.38); armR.el = 0.3 + 0.25 * Math.max(0, armR.z / 0.38);   // elbow bends on the forward swing
-    armL.x = -0.95 + 0.06 * Math.cos(TAU * cL) ** 2; armR.x = armL.x;
+    armL.el = 0.4 + 0.25 * Math.max(0, armL.z / 0.38); armR.el = 0.4 + 0.25 * Math.max(0, armR.z / 0.38);   // elbow bends on the forward swing
+    armL.x = -1.02 + 0.05 * Math.cos(TAU * cL) ** 2; armR.x = armL.x;
     // contact/down = squash, passing/up = stretch (slight lag after the foot lands), volume preserved
     const dn = Math.cos(TAU * T.stepRate * (t - 0.035));
     sqScale = [1 + 0.018 * dn, 1 - 0.032 * dn, 1 + 0.018 * dn];
     // overlap: shoulders twist with the arm swing, hands drag behind the arms
-    rotY += 0.035 * Math.sin(TAU * cL);
+    rotY += 0.02 * Math.sin(TAU * cL);
+    chZ = 0.03 * Math.sin(TAU * cL - 1.0); spZ = 0.015 * Math.sin(TAU * cL - 0.6);   // shoulders sway a beat behind the hips
     armL.hand = 0.25 * Math.sin(TAU * cL - 0.9 + PI); armR.hand = -armL.hand;
     // TAKE: last ~0.12 s he notices the glass: head snaps level, body stiffens/stretches, arms flinch up
     const take = ss(T.impact - 0.15, T.impact - 0.09, t);
-    hipsX = lerp(hipsX, -0.04, take);
+    hipsX = lerp(hipsX, -0.04, take); spX = lerp(spX, 0.02, take); chX = lerp(chX, 0.04, take);
     sqScale = [sqScale[0] * (1 - 0.04 * take), sqScale[1] * (1 + 0.08 * take), sqScale[2] * (1 - 0.04 * take)];
     armL.x += 0.45 * take; armR.x = armL.x; armL.el += 0.5 * take; armR.el += 0.5 * take;
     shPitch = 0.05 * Math.sin(TAU * T.stepRate * t - 1.4);     // shackle bobs a beat behind the body
     shRoll = -0.07 * Math.sin(TAU * cL - 0.6) * (1 - take);
     // whistling: head goes up a bit on the loud notes and tilts with the melody
     let wa = 0, wp = 0; for (const d of [-0.06, -0.03, 0, 0.03, 0.06]) { const w0 = whistleAt(t + d); wa += w0.amp / 5; wp += (w0.pitch - 0.5) * w0.amp / 5; }
-    hipsX += -0.06 * wa * (1 - take); hipsZ += 0.05 * wp;
+    chX += -0.06 * wa * (1 - take); spX += -0.02 * wa * (1 - take); hipsZ += 0.03 * wp; chZ += 0.04 * wp;
 
     sqPivot = [x, 0, z];
   } else {
@@ -221,6 +223,7 @@ window.stateAt = (t, eng) => {
       sqScale = [1 + 0.035 * emb + shy + 0.04 * dip, 1 - 0.05 * emb - shy - 0.07 * dip, 1 + 0.035 * emb + 0.04 * dip];
       armL.x = -1.12 + 0.35 * emb; armR.x = armL.x; armL.el = 0.4 + 0.8 * emb; armR.el = armL.el;
       armL.z = 0.3 * emb; armR.z = 0.3 * emb;
+      chX += 0.14 * emb; spX += 0.06 * emb;
       const wv = ss(T.waveStart, T.waveStart + 0.22, t) * (1 - ss(T.waveDown - 0.15, T.waveDown + 0.15, t));
       const wv2 = ss(T.wink - 0.1, T.wink + 0.15, t) * (1 - ss(T.settle - 0.2, T.settle + 0.25, t));
       const wv3 = ss(T.wave2, T.wave2 + 0.25, t) * (1 - ss(T.wave2End - 0.2, T.wave2End + 0.15, t));
@@ -229,6 +232,7 @@ window.stateAt = (t, eng) => {
       armR.z = lerp(armR.z, 0.15, wave);
       armR.el = lerp(armR.el, 0.35 + 0.42 * Math.sin((t - T.waveStart) * TAU * 2.6), wave);
       armR.hx = 0.45 * Math.sin((t - T.waveStart) * TAU * 2.6 - 1.1) * wave;          // hand flops after the forearm
+      chZ += -0.05 * wave + 0.025 * Math.sin((t - T.waveStart) * TAU * 2.6 - 0.6) * wave;   // leans into the wave
       // closing beat (no logo any more): little hop + head tilt into the wink
       const wk = t - T.wink;
       // anticipation crouch -> hop (stretched in the air) -> squash on landing -> settle
@@ -249,6 +253,7 @@ window.stateAt = (t, eng) => {
       const bnc = Math.sin(PI * cl((t - (T.wave2 - 0.12)) / 0.32));
       y += 0.025 * bnc; sqScale = [sqScale[0] * (1 - 0.02 * bnc), sqScale[1] * (1 + 0.035 * bnc), sqScale[2] * (1 - 0.02 * bnc)];
       armL.x += 0.06 * Math.sin((t - T.settle) * TAU * 0.45 + 0.6) * hold;
+      chZ += 0.03 * Math.sin((t - T.settle) * TAU * 0.45 - 0.7) * hold; chX += -0.02 * Math.sin((t - T.settle) * TAU * 0.3) * hold;
       legL.x = 0; legR.x = 0; legL.k = 0; legR.k = 0;
       // shackle follow-through: lags the pop-ups and the hop, shivers when shy
       shPitch = -0.22 * wob(t - T.peekStart - 0.25, 3, 4.5) * (t > T.peekStart + 0.25 ? 1 : 0)
@@ -262,6 +267,7 @@ window.stateAt = (t, eng) => {
   }
 
   B['Hips'] = qm(qa(X, hipsX), qa(Z, hipsZ));
+  B['Spine'] = qm(qa(X, spX), qa(Z, spZ)); B['Chest'] = qm(qa(X, chX), qa(Z, chZ));
   S['Hips'] = [0, hipsY, 0];
   B['UpperLeg_L'] = qm(qa(Z, legL.roll || 0), qa(X, legL.x - hipsX)); B['UpperLeg_R'] = qm(qa(Z, legR.roll || 0), qa(X, legR.x - hipsX));
   B['LowerLeg_L'] = qa(X, legL.k); B['LowerLeg_R'] = qa(X, legR.k);

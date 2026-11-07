@@ -60,5 +60,29 @@ for p in mesh['primitives']:
     raw[jo:jo + n * 4] = joints.tobytes(); raw[wo:wo + n * 16] = weights.astype(np.float32).tobytes()
     done += n
 assert done, 'Legs primitive not found'
-DST.write_bytes(bytes(raw))
+
+# ---- body: was one rigid block on Hips. Now a soft spine: Hips (bottom) -> Spine -> Chest (top), blended
+# by height, so the upper body can arc back / hunch / lag a step while the base stays over the legs.
+# Eyes, mouth and expression decals get exactly the same weights so they stay glued to the face.
+def body_w(y):
+    a = ss(0.34, 0.47, y); b = ss(0.47, 0.61, y)          # bends below the face: eyes/mouth (y 0.65-0.82) stay rigid on Chest
+    return np.stack([1 - a, a - b, b], 1)                       # Hips, Spine, Chest
+body_done = 0
+for nd in j['nodes']:
+    if nd['name'] not in ('LockyBody', 'Eyes', 'Mouth.001'): continue
+    for p in j['meshes'][nd['mesh']]['primitives']:
+        po, n = view(p['attributes']['POSITION'], np.float32, 3)
+        P = np.frombuffer(bytes(raw[po:po + n * 12]), np.float32).reshape(n, 3)
+        jo, _ = view(p['attributes']['JOINTS_0'], np.uint8, 4); wo, _ = view(p['attributes']['WEIGHTS_0'], np.float32, 4)
+        w = body_w(P[:, 1]); joints = np.zeros((n, 4), np.uint8); weights = np.zeros((n, 4), np.float32)
+        joints[:, 0], joints[:, 1], joints[:, 2] = J['Hips'], J['Spine'], J['Chest']; weights[:, :3] = w
+        raw[jo:jo + n * 4] = joints.tobytes(); raw[wo:wo + n * 16] = weights.tobytes(); body_done += n
+    if nd['name'] == 'LockyBody':                               # make it a real skinned mesh (node transform is ignored)
+        nd['skin'] = 0; nd.pop('translation', None); nd.pop('scale', None)
+print('re-skinned', body_done, 'body/face vertices (Hips/Spine/Chest)')
+# rebuild the GLB with the edited JSON chunk (binary chunk unchanged)
+js = json.dumps(j, separators=(',', ':')).encode(); js += b' ' * ((4 - len(js) % 4) % 4)
+binchunk = bytes(raw[20 + jl:])
+out = struct.pack('<III', 0x46546C67, 2, 12 + 8 + len(js) + len(binchunk)) + struct.pack('<II', len(js), 0x4E4F534A) + js + binchunk
+DST.write_bytes(out)
 print('re-skinned', done, 'leg vertices ->', DST)

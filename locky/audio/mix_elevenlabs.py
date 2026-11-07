@@ -48,12 +48,19 @@ def tt(d): return np.arange(int(d * SR)) / SR
 def env(t, a, d): return np.minimum(1, t / max(a, 1e-4)) * np.exp(-np.maximum(0, t - a) / d)
 def mono(y): return np.stack([y, y], 1)
 
-# ---- footsteps: one recorded step per foot contact (contacts every 1/stepRate s)
-st = load('steps_a'); steps = [norm(clip(st, s / SR, min(0.13, (e - s) / SR + 0.04), 0.001, 0.03)) for s, e in segments(st)]
+# ---- footsteps: soft padded steps (steps2_c), only the darker hits, one per foot contact (every 1/stepRate s)
+st = load('steps2_c'); m_ = st.mean(1); env_ = np.convolve(np.abs(m_), np.ones(240) / 240, 'same'); thr = env_.max() * 0.25
+ons = [o for o in np.where((env_[1:] > thr) & (env_[:-1] <= thr))[0]]
+hits = []
+for o in ons:
+    if hits and o - hits[-1] < 0.08 * SR: continue
+    seg = m_[o:o + int(0.08 * SR)]; sp = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))); fr = np.fft.rfftfreq(len(seg), 1 / SR)
+    if (sp * fr).sum() / sp.sum() < 1800: hits.append(o)
+steps = [norm(clip(st, max(0, o / SR - 0.004), 0.16, 0.002, 0.06)) for o in hits]
 k = 1
 while k / TL['stepRate'] < TL['impact'] - 0.06:
     ts = k / TL['stepRate']; prox = ts / TL['impact']
-    put('steps', steps[k % len(steps)], ts - 0.008, 0.10 + 0.28 * prox ** 1.5, -0.2 if k % 2 else 0.2); k += 1
+    put('steps', steps[k % len(steps)], ts - 0.006, 0.07 + 0.2 * prox ** 1.5, -0.15 if k % 2 else 0.15); k += 1
 
 # ---- whistle: one continuous melody (take c, then take a continues it in the same register)
 w_end = TL['whistleEnd']; t0 = 0.10
@@ -115,7 +122,7 @@ for ch in range(2):
 ir /= np.abs(ir).sum(0).max() / 4; wav(tmp / 'ir.wav', ir / np.abs(ir).max() * 0.9)
 fade_st, fade_d = TL.get('fade', TL['dur'] - 0.6), TL['dur'] - TL.get('fade', TL['dur'] - 0.6)
 fc = ('[0]highpass=f=350,equalizer=f=2600:t=q:w=1.2:g=2,equalizer=f=6500:t=q:w=1:g=-2[w];'
-      '[1]highpass=f=90,lowpass=f=9000,equalizer=f=220:t=q:w=1:g=-3[s];'
+      '[1]highpass=f=110,lowpass=f=5500,equalizer=f=220:t=q:w=1:g=-2,equalizer=f=3000:t=q:w=1:g=-3[s];'
       '[2]highpass=f=25,equalizer=f=60:t=q:w=1:g=3,equalizer=f=450:t=q:w=1.4:g=-3,equalizer=f=3000:t=q:w=1:g=1.5[i];'
       '[3]highpass=f=70,equalizer=f=3500:t=q:w=1:g=1[e];'
       '[w]asplit[wd][ws];[s]asplit[sd][ss];[i]asplit[id][is];[e]asplit[ed][es];'
