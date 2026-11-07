@@ -55,5 +55,5 @@ for (let f = 0; f <= N; f++) {
     shackle: r6(st.pose.shackle || [0, 0, 0, 1]),
     cam: { pos: r6(st.cam.pos), target: r6(st.cam.target), fov: st.cam.fov }, shadow: +st.shadow.a.toFixed(4), flash: +(st.flash || 0).toFixed(4) });
 }
-fs.writeFileSync(out, JSON.stringify({ fps, scene: SCENE || 'choque', aspect: (window.SCENE && window.SCENE.aspect) || 16 / 9, dur: T.dur, glassZ: T.glassZ, timeline: T, jointNames: skin.joints.map(ji => nodes[ji].name), frames }));
+fs.writeFileSync(out, JSON.stringify({ fps, scene: SCENE || 'choque', res: T.res, aspect: (window.SCENE && window.SCENE.aspect) || T.aspect || 16 / 9, dur: T.dur, glassZ: T.glassZ, timeline: T, jointNames: skin.joints.map(ji => nodes[ji].name), frames }));
 console.log('wrote', out, frames.length, 'frames');

@@ -1,5 +1,5 @@
 window.TL = {
-  "dur": 12.3,
+  "dur": 11.0,
   "glassZ": 2.75,
   "z0": -0.8,
   "stepRate": 5.4,
@@ -14,7 +14,10 @@ window.TL = {
   "waveDown": 6.8,
   "wink": 7.25,
   "settle": 8.35,
-  "wave2": 9.8,
-  "wave2End": 10.75,
-  "fade": 11.4
+  "wave2": 99,
+  "wave2End": 99.5,
+  "fade": 9.9,
+  "aspect": 2.39,
+  "res": [2048, 858],
+  "fps": 24
 }

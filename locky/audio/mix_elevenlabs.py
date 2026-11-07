@@ -106,6 +106,16 @@ voiced = pit[amp > 0.2]; lo, hi = (np.percentile(voiced, 10), np.percentile(voic
 pn = np.where(amp > 0.05, np.clip((pit - lo) / max(1, hi - lo), 0, 1), 0)
 (HERE.parent / 'build' / 'whistle_env.js').write_text('window.WHISTLE = ' + json.dumps({'fps': 60, 'amp': [round(float(v), 3) for v in amp], 'pitch': [round(float(v), 3) for v in pn]}) + ';\n')
 
+# ---- unmixed stems for the commercial mix: dry (no EQ / reverb / compression / fade), 48 kHz 24-bit,
+# all starting at frame 0 and lasting the whole piece, so they line up with the picture as-is
+SD = HERE.parent / 'output' / 'stems_choque'; SD.mkdir(parents=True, exist_ok=True)
+pk_all = max(np.abs(x).max() for x in stems.values()) * 1.12      # common gain: relative levels = rough mix
+names = {'whistle': '1_silbido', 'steps': '2_pasos', 'impact': '3_choque', 'fx': '4_efectos'}
+for k_, x in stems.items():
+    y = (x[:int(TL['dur'] * SR)] / pk_all).astype(np.float32)
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ar', str(SR), '-ac', '2', '-i', '-', '-c:a', 'pcm_s24le',
+                    str(SD / f'locky_choque_stem_{names[k_]}.wav')], input=y.tobytes(), check=True)
+
 # ---- master with ffmpeg: per-stem EQ, convolution reverb send, bus comp, limiter, loudness, fade
 tmp = pathlib.Path(tempfile.mkdtemp())
 def wav(path, x):

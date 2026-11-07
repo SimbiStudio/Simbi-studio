@@ -13,7 +13,7 @@ const [outDir, mode, ...rest] = args.filter(a => a !== '--overlay');
   fs.mkdirSync(outDir, { recursive: true });
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
     '--allow-file-access-from-files', '--ignore-gpu-blocklist'] });
-  const pg = await b.newPage({ viewport: { width: 1920, height: 1080 } });
+  const pg = await b.newPage({ viewport: { width: 2048, height: 858 } });
   pg.on('console', m => console.log('console:', m.text()));
   await pg.goto('file://' + path.join(__dirname, 'render.html'));
   await pg.waitForFunction('window.READY || window.ERR', null, { timeout: 120000 });
@@ -23,7 +23,7 @@ const [outDir, mode, ...rest] = args.filter(a => a !== '--overlay');
   // overlay frames are read straight from the 2D canvas: transparent page screenshots keep stale pixels
   // from previous frames in headless Chromium (rings/stars piled up)
   const shot = async (file) => {
-    if (!overlay) return pg.screenshot({ path: path.join(outDir, file), clip: { x: 0, y: 0, width: 1920, height: 1080 } });
+    if (!overlay) return pg.screenshot({ path: path.join(outDir, file), clip: { x: 0, y: 0, width: 2048, height: 858 } });
     const url = await pg.evaluate(() => document.getElementById('ov').toDataURL('image/png'));
     fs.writeFileSync(path.join(outDir, file), Buffer.from(url.split(',')[1], 'base64')); };
   if (mode === 'times') {

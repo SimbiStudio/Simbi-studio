@@ -208,6 +208,7 @@ for fi, f in enumerate(FR):
     cp, ct = v3(f['cam']['pos']), v3(f['cam']['target'])
     cam.location = cp; cam.rotation_quaternion = (ct - cp).to_track_quat('-Z', 'Y')
     cam.keyframe_insert('location', frame=fr); cam.keyframe_insert('rotation_quaternion', frame=fr)
+    cam.data.angle_y = math.radians(f['cam']['fov']); cam.data.keyframe_insert('lens', frame=fr)   # animated framing
     # shackle secondary motion
     qx, qy, qz, qw = f.get('shackle', [0, 0, 0, 1])
     sb = pb['Shackle']; sb.rotation_quaternion = (qw, qx, qy, qz); sb.keyframe_insert('rotation_quaternion', frame=fr)
@@ -243,7 +244,8 @@ if 'finalize' in SCN: SCN['finalize']()
 # ---------------------------------------------------------------- render settings
 sc.frame_start = 0; sc.frame_end = len(FR) - 2          # 0 .. dur*fps-1
 sc.render.fps = D['fps']
-sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1920, int(round(1920 / D.get('aspect', 16 / 9) / 2) * 2), 100
+sc.render.resolution_x, sc.render.resolution_y = D['res'] if D.get('res') else (1920, int(round(1920 / D.get('aspect', 16 / 9) / 2) * 2))
+sc.render.resolution_percentage = 100
 sc.render.engine = 'CYCLES'
 cy = sc.cycles
 cy.device = 'CPU'; cy.samples = 16; cy.adaptive_threshold = 0.02; cy.use_denoising = True; cy.denoiser = 'OPENIMAGEDENOISE'; cy.denoising_prefilter = 'FAST'; cy.denoising_quality = 'BALANCED'

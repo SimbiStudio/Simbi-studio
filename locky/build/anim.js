@@ -94,7 +94,7 @@ const exprAt = (t) => {
     const sh = { 'Mouth_U': pucker * (0.55 + 0.3 * wh.amp + 0.15 * wh.pitch), 'Mouth_O': 0.35 * wh.slow * (1 - wh.amp) + 0.15 * (1 - wh.pitch) * wh.amp,
                  'Mouth_Smirk L': 0.35 * wh.slow, 'Mouth_Joy': 0.55 * (1 - wh.slow) };
     for (const k in sh) w[k] = (w[k] || 0) + sh[k] * wm; }
-  const blinks = [T.peekStart + 0.13, T.peekStart + 0.41, T.settle + 0.7, T.wave2End + 0.45, T.fade + 0.15];
+  const blinks = [T.peekStart + 0.13, T.peekStart + 0.41, T.settle + 0.75];   // one blink, then fade to black
   let b = 0; blinks.forEach(bt => { b = Math.max(b, 1 - cl(Math.abs(t - bt) / 0.075)); });
   const open = 1 - cl((w['Eyes_Joy'] || 0) + (w['Eyes_ .> <.'] || 0) + (w['Eyes_ T T'] || 0) + (w['Eyes_Wink R'] || 0) + (w['Eyes_Fun'] || 0));
   if (b > 0) w['Eyes_Close'] = (w['Eyes_Close'] || 0) + b * open;
@@ -283,15 +283,17 @@ window.stateAt = (t, eng) => {
   const root = M.trs([x, y, z], qa(Y, rotY), visible ? [1, 1, 1] : [0, 0, 0]);
 
   let camPos = [0, 1.0, 4.65 - 0.12 * ss(0, T.impact, t)];
-  const target = [0, 0.72, 0];
+  const open = ss(2.45, 3.1, t) * (1 - ss(T.slideEnd - 0.1, T.peekStart - 0.05, t));
+  const target = [0, lerp(0.72, 0.88, open) - 0.04 * ss(T.peekStart - 0.2, T.peekStart, t), 0];
+  const fov = lerp(30, 50, open) + 3 * ss(T.peekStart - 0.2, T.peekStart, t) * (1 - open);
   const ti = t - T.impact;
   if (ti > 0) { const sh = Math.exp(-ti * 10) * 0.06; camPos = [camPos[0] + sh * Math.sin(ti * 83), camPos[1] + sh * Math.sin(ti * 67 + 1), camPos[2]];
-    camPos[2] -= 0.16 * ss(0, 0.035, ti) * (1 - ss(0.06, 0.45, ti)); }   // punch-in on the hit
+    camPos[2] -= 0.03 * ss(0, 0.035, ti) * (1 - ss(0.06, 0.45, ti)); }   // punch-in on the hit (gentler: keep the shackle in frame)
   const endEase = ss(T.peekStart - 0.2, T.peekStart + 1.0, t);
   camPos[2] += 0.12 * endEase - 0.1 * ss(T.settle, T.dur, t);      // slow push-in on the held pose
 
   return {
-    bg: BG, cam: { pos: camPos, target, fov: 32 },
+    bg: BG, cam: { pos: camPos, target, fov },
     pose: { bones: B, boneT: S, morph: exprAt(t), shackle: qm(qa(X, shPitch), qa(Z, shRoll)) }, root, sq: { pivot: sqPivot, scale: sqScale },
     glass: { z: T.glassZ, on: glassOn, c: glassC },
     shadow: { c: [x, 0.002, z], r: [0.42, 0.3], a: visible && walking ? shadowA : 0 },
@@ -304,27 +306,22 @@ window.stateAt = (t, eng) => {
 const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 window.drawOverlay = (t, st, eng, cv) => {
   cv.width = cv.width;            // full reset: clearRect left the previous frames' FX behind
-  const c = cv.getContext('2d'); const W = cv.width, H = cv.height;
+  const c = cv.getContext('2d'); const W = cv.width, H = cv.height, K = H / 1080;
   const ti = t - T.impact;
   if (ti > 0) {
     const p0 = eng.project([0, 0.73, T.glassZ]);
-    const fade = 1 - ss(T.slideEnd + 0.4, T.waveStart + 0.6, t);
-    const grow = ss(0, 0.06, ti);
-    const curY = eng.project([0, Math.max(st.glassC[1], -0.4), T.glassZ])[1];
-    if (fade > 0) {
-      c.save(); c.filter = 'blur(18px)'; c.globalAlpha = (0.05 + 0.10 * ss(T.slideStart, T.slideEnd, t)) * fade * grow; c.fillStyle = '#e8ecff';
-      const hw = 430, hh = 300;
-      c.beginPath(); c.roundRect(p0[0] - hw, p0[1] - hh * 0.9, hw * 2, hh * 1.75 + Math.max(0, curY - p0[1]), 140); c.fill(); c.restore();
-      if (t > T.slideStart) {
-        c.save(); c.filter = 'blur(6px)'; c.globalAlpha = 0.09 * fade; c.strokeStyle = '#ffffff'; c.lineCap = 'round';
-        for (let i = 0; i < 7; i++) { const xx = p0[0] - 330 + i * 110 + (rnd(i) - 0.5) * 40; c.lineWidth = 10 + rnd(i + 9) * 18;
-          c.beginPath(); c.moveTo(xx, p0[1] + 120); c.lineTo(xx + (rnd(i + 3) - 0.5) * 20, Math.max(p0[1] + 120, curY + 160)); c.stroke(); }
-        c.restore();
-      }
+    // breath fog of his face on the glass: small, soft, gone (~1 s fade) before he peeks back up
+    const fog = ss(0, 0.06, ti) * (1 - ss(T.slideStart + 0.1, T.slideStart + 1.1, t));
+    if (fog > 0) {
+      const pm = Math.abs(eng.project([0.25, 0.73, T.glassZ])[0] - p0[0]);                 // px per quarter metre
+      c.save(); c.filter = `blur(${Math.round(12 * K)}px)`; c.fillStyle = '#e8ecff';
+      c.globalAlpha = 0.13 * fog; c.beginPath(); c.roundRect(p0[0] - pm, p0[1] - pm * 0.75, pm * 2, pm * 1.6, pm * 0.45); c.fill();
+      c.globalAlpha = 0.12 * fog; c.beginPath(); c.ellipse(p0[0], p0[1] + pm * 0.12, pm * 0.32, pm * 0.24, 0, 0, TAU); c.fill();   // mouth
+      c.restore();
     }
     for (let k = 0; k < 2; k++) { const tk = ti - k * 0.07; if (tk <= 0 || tk > 0.6) continue;
-      const r = 120 + outCubic(tk / 0.6) * 900; c.save(); c.globalAlpha = 0.55 * (1 - tk / 0.6) * (k ? 0.5 : 1);
-      c.strokeStyle = '#ffffff'; c.lineWidth = 10 * (1 - tk / 0.6) + 1; c.beginPath(); c.ellipse(p0[0], p0[1], r, r * 0.82, 0, 0, TAU); c.stroke(); c.restore(); }
+      const r = (120 + outCubic(tk / 0.6) * 900) * K; c.save(); c.globalAlpha = 0.55 * (1 - tk / 0.6) * (k ? 0.5 : 1);
+      c.strokeStyle = '#ffffff'; c.lineWidth = (10 * (1 - tk / 0.6) + 1) * K; c.beginPath(); c.ellipse(p0[0], p0[1], r, r * 0.82, 0, 0, TAU); c.stroke(); c.restore(); }
     const gt = ti / 0.55; if (gt > 0 && gt < 1) {
       c.save(); const gx = lerp(-600, W + 600, outCubic(gt)); c.globalAlpha = 0.20 * Math.sin(PI * gt);
       c.translate(gx, H / 2); c.rotate(-0.42);
@@ -332,8 +329,8 @@ window.drawOverlay = (t, st, eng, cv) => {
       c.fillStyle = gr; c.fillRect(-160, -1400, 320, 2800); c.fillRect(220, -1400, 60, 2800); c.restore(); }
     const sa = ss(0.08, 0.2, ti) * (1 - ss(T.slideEnd - 0.35, T.slideEnd - 0.1, t));
     if (sa > 0) { const top = eng.project([0, 0.73 + st.y + 0.46, T.glassZ]);
-      for (let i = 0; i < 4; i++) { const a = ti * 5.2 + i * TAU / 4; const sx = top[0] + Math.cos(a) * 300, sy = top[1] + Math.sin(a) * 55;
-        const sz = (26 + 10 * Math.sin(a)) * sa;
+      for (let i = 0; i < 4; i++) { const a = ti * 5.2 + i * TAU / 4; const sx = top[0] + Math.cos(a) * 300 * K, sy = top[1] + Math.sin(a) * 55 * K;
+        const sz = (26 + 10 * Math.sin(a)) * sa * K;
         c.save(); c.globalAlpha = Math.sin(a) > 0 ? 1 : 0.75; c.translate(sx, sy); c.rotate(a * 0.8); c.fillStyle = '#ffd84a';
         c.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? sz * 0.42 : sz; const aa = k * PI / 5 - PI / 2; c.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); }
         c.closePath(); c.fill(); c.restore(); } }
@@ -342,7 +339,7 @@ window.drawOverlay = (t, st, eng, cv) => {
   const sd = t - (T.embarrassed + 0.06);
   if (sd > 0 && t < T.waveStart + 0.1) {
     const head = eng.project([st.x + 0.36, st.y + 1.0 - 0.06 * ss(0.15, 0.5, sd), st.z + 0.25]);
-    const sc = outBack(cl(sd / 0.14), 2.5) * (1 - ss(T.waveStart - 0.15, T.waveStart + 0.1, t)), r = 40 * sc;
+    const sc = outBack(cl(sd / 0.14), 2.5) * (1 - ss(T.waveStart - 0.15, T.waveStart + 0.1, t)), r = 40 * sc * K;
     if (r > 0.5) { c.save(); c.translate(head[0], head[1]);
       c.fillStyle = '#bfe6ff'; c.strokeStyle = '#3a6fd1'; c.lineWidth = 4 * sc;
       c.beginPath(); c.moveTo(0, -r * 1.9); c.bezierCurveTo(r * 0.95, -r * 0.5, r, r * 0.9, 0, r); c.bezierCurveTo(-r, r * 0.9, -r * 0.95, -r * 0.5, 0, -r * 1.9);

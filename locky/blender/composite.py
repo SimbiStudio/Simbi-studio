@@ -11,10 +11,10 @@ FR = (pathlib.Path(a[0]) if len(a) > 0 else HERE / 'out').resolve()
 OV = (pathlib.Path(a[1]) if len(a) > 1 else ROOT / 'frames_overlay').resolve()
 AU = pathlib.Path(a[2]) if len(a) > 2 else ROOT / 'output' / 'locky_sfx_v2_elevenlabs.wav'
 OUT = pathlib.Path(a[3]) if len(a) > 3 else ROOT / 'output' / 'locky_entrada_choque_v2.mp4'
-W, H = 1920, 1080
 TL = json.loads(re.sub(r'^window\.TL\s*=\s*', '', (ROOT / 'build' / 'timeline.js').read_text()))
 STEP = int(os.environ.get('STEP', '1'))          # 2 = 30 fps delivery from the 60 fps timeline
-FPS = 60 // STEP
+FPS = int(os.environ.get('FPS', TL.get('fps', 60))) // STEP
+W, H = (TL.get('res') or [1920, 1080])
 
 # background plate: vertical light + off-centre spotlight vignette, BG ~#4E58DA
 bg = np.array([0x4E, 0x58, 0xDA]) / 255

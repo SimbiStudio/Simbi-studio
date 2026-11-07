@@ -18,3 +18,6 @@ locky/blender/locky_telon.blend
 locky/blender/choque_comp.log
 locky/blender/pipeline_v25.log
 locky/output/*.v25
+locky/output/.v27_preview_done
+locky/blender/out_60fps_v26/
+locky/blender/pipeline_v27.log
