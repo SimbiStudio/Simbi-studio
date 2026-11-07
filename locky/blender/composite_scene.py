@@ -28,6 +28,6 @@ fd = T['dur'] - T['fade']
 print('compositing', len(frames), 'frames @', FPS, 'fps', f'{W}x{H}')
 subprocess.run(['ffmpeg', '-v', 'error', '-y', '-loop', '1', '-framerate', str(FPS), '-i', str(plate),
     '-framerate', str(FPS), '-i', str(tmp / 'b_%05d.png'), '-i', str(AU),
-    '-filter_complex', f'[0][1]overlay=shortest=1,fade=t=out:st={T["fade"]}:d={fd},format=yuv420p[v]',
+    '-filter_complex', f'[0][1]overlay=shortest=1,fade=t=out:st={T["fade"]}:d={fd},scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[v]',
     '-map', '[v]', '-map', '2:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-c:a', 'aac', '-b:a', '192k', '-shortest', str(OUT)], check=True)
 print('wrote', OUT)
