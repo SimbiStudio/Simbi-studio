@@ -13,3 +13,5 @@ locky/blender/out_*/
 locky/blender/*.blend1
 locky/blender/render_scenes.log
 locky/blender/bg_plate_*.png
+# >100 MB (baked cloth cache): rebuild with SCENE=telon node export_anim.js && blender -b --python build_scene.py -- anim_frames_telon.json
+locky/blender/locky_telon.blend
