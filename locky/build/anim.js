@@ -283,9 +283,9 @@ window.stateAt = (t, eng) => {
   const root = M.trs([x, y, z], qa(Y, rotY), visible ? [1, 1, 1] : [0, 0, 0]);
 
   let camPos = [0, 1.0, 4.65 - 0.12 * ss(0, T.impact, t)];
-  const open = ss(2.45, 3.1, t) * (1 - ss(T.slideEnd - 0.1, T.peekStart - 0.05, t));
-  const target = [0, lerp(0.72, 0.88, open) - 0.04 * ss(T.peekStart - 0.2, T.peekStart, t), 0];
-  const fov = lerp(30, 50, open) + 3 * ss(T.peekStart - 0.2, T.peekStart, t) * (1 - open);
+  // one fixed lens for the whole shot (no zoom before the hit): wide enough for the shackle + stars at impact
+  const target = [0, 0.86 - 0.04 * ss(T.peekStart - 0.2, T.peekStart, t), 0];
+  const fov = 46;
   const ti = t - T.impact;
   if (ti > 0) { const sh = Math.exp(-ti * 10) * 0.06; camPos = [camPos[0] + sh * Math.sin(ti * 83), camPos[1] + sh * Math.sin(ti * 67 + 1), camPos[2]];
     camPos[2] -= 0.03 * ss(0, 0.035, ti) * (1 - ss(0.06, 0.45, ti)); }   // punch-in on the hit (gentler: keep the shackle in frame)
