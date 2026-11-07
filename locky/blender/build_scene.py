@@ -8,10 +8,13 @@ from mathutils import Matrix, Vector, Quaternion
 HERE = pathlib.Path(__file__).resolve().parent
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 DATA = pathlib.Path(argv[0]) if len(argv) > 0 else HERE / 'anim_frames.json'
-OUT = pathlib.Path(argv[1]) if len(argv) > 1 else HERE / 'locky_v2.blend'
-GLB = HERE.parent / 'input' / 'LockyBase2026_rigfix.glb'
 D = json.loads(DATA.read_text())
 FR = D['frames']
+SCENE = D.get('scene', 'choque')
+OUT = pathlib.Path(argv[1]) if len(argv) > 1 else HERE / ('locky_v2.blend' if SCENE == 'choque' else f'locky_{SCENE}.blend')
+GLB = HERE.parent / 'input' / 'LockyBase2026_rigfix.glb'
+# optional per-scene module (props, extra animation): blender/scene_<name>.py with setup(), per_frame(f, fr), finalize()
+SCN = {}
 
 C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))   # glTF -> Blender
 Ci = C.inverted()
@@ -156,6 +159,12 @@ wl.new(ramp.outputs[0], bgn.inputs['Color']); bgn.inputs['Strength'].default_val
 bpy.ops.mesh.primitive_plane_add(size=6.0, location=(0, 0, 0)); floor = bpy.context.active_object; floor.name = 'ShadowCatcher'
 floor.is_shadow_catcher = True
 
+# ---------------------------------------------------------------- scene-specific setup
+_mod = HERE / f'scene_{SCENE}.py'
+if _mod.exists():
+    SCN.update(globals()); exec(compile(_mod.read_text(), str(_mod), 'exec'), SCN)
+    SCN['setup']()
+
 # ---------------------------------------------------------------- bake keyframes
 names = D['jointNames']
 pb = arm.pose.bones
@@ -208,6 +217,7 @@ for fi, f in enumerate(FR):
         prev_vis = f['visible']
     floor.hide_render = f['shadow'] <= 0.001; floor.keyframe_insert('hide_render', frame=fr)
     floor.location = (r[12], -r[14] + 0.6, 0); floor.keyframe_insert('location', frame=fr)
+    if 'per_frame' in SCN: SCN['per_frame'](f, fr)
 
 for ad in [o.animation_data for o in sc.objects if o.animation_data] + [o.data.shape_keys.animation_data for o in meshes if o.data.shape_keys and o.data.shape_keys.animation_data]:
     act = ad.action
@@ -216,11 +226,23 @@ for ad in [o.animation_data for o in sc.objects if o.animation_data] + [o.data.s
     for fc in fcs:
         for k in fc.keyframe_points:
             if fc.data_path != 'hide_render': k.interpolation = 'LINEAR'
+# camera cuts: hold the last frame of a shot (no interpolation / motion blur across the cut)
+# (every animated datablock, not just the camera: the character jumps between shots too)
+cuts = {i for i, f in enumerate(FR) if f.get('cut')}
+if cuts:
+    owners = [o for o in sc.objects] + [o.data.shape_keys for o in meshes if o.data.shape_keys] + list(bpy.data.materials)
+    for ow in owners:
+        ad = getattr(ow, 'animation_data', None) or (ow.node_tree.animation_data if getattr(ow, 'node_tree', None) else None)
+        for a in [x for x in (ad, getattr(getattr(ow, 'node_tree', None), 'animation_data', None)) if x and x.action]:
+            for fc in a.action.fcurves:
+                for k in fc.keyframe_points:
+                    if int(round(k.co[0])) + 1 in cuts: k.interpolation = 'CONSTANT'
+if 'finalize' in SCN: SCN['finalize']()
 
 # ---------------------------------------------------------------- render settings
 sc.frame_start = 0; sc.frame_end = len(FR) - 2          # 0 .. dur*fps-1
 sc.render.fps = D['fps']
-sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1920, 1080, 100
+sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1920, int(round(1920 / D.get('aspect', 16 / 9) / 2) * 2), 100
 sc.render.engine = 'CYCLES'
 cy = sc.cycles
 cy.device = 'CPU'; cy.samples = 16; cy.adaptive_threshold = 0.02; cy.use_denoising = True; cy.denoiser = 'OPENIMAGEDENOISE'; cy.denoising_prefilter = 'FAST'; cy.denoising_quality = 'BALANCED'
@@ -228,9 +250,10 @@ sc.render.use_persistent_data = True
 cy.max_bounces = 6; cy.diffuse_bounces = 3; cy.glossy_bounces = 3; cy.transmission_bounces = 4; cy.transparent_max_bounces = 8
 sc.render.film_transparent = True
 sc.render.use_motion_blur = True; sc.render.motion_blur_shutter = 0.5
+if cuts: sc.render.motion_blur_position = 'START'      # blur only forward: no smear back into the previous shot
 sc.view_settings.view_transform = 'Standard'; sc.view_settings.look = 'None'
 sc.render.image_settings.file_format = 'PNG'; sc.render.image_settings.color_mode = 'RGBA'
-sc.render.filepath = str(HERE / 'out' / 'f_')
+sc.render.filepath = str(HERE / ('out' if SCENE == 'choque' else f'out_{SCENE}') / 'f_')
 sc.frame_set(0)
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT))
 print('saved', OUT, 'frames', sc.frame_start, sc.frame_end)

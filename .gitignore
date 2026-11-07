@@ -8,3 +8,6 @@ locky/blender/*.blend1
 locky/blender/anim_frames.json
 locky/blender/render.log
 locky/blender/bg_plate.png
+locky/blender/anim_frames_*.json
+locky/blender/out_*/
+locky/blender/*.blend1
