@@ -9,7 +9,7 @@ canvas{position:absolute;left:0;top:0}</style></head><body>
     const eng = new Engine(document.getElementById('gl'));
     await eng.load(window.GLB_B64);
     window.eng = eng;
-    window.renderAt = (t) => { const st = window.stateAt(t, eng); eng.render(st); window.drawOverlay(t, st, eng, document.getElementById('ov')); eng.gl.finish(); return true; };
+    window.renderAt = (t) => { const st = window.stateAt(t, eng); eng.render(st); const old = document.getElementById('ov'), ov = old.cloneNode(false); old.replaceWith(ov); /* fresh 2D canvas every frame: reused canvases kept stale FX in headless Chromium */ window.drawOverlay(t, st, eng, ov); eng.gl.finish(); return true; };
     window.READY = true;
   } catch (e) { window.ERR = String(e.stack || e); }
 })();

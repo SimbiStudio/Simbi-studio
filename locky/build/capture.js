@@ -20,7 +20,12 @@ const [outDir, mode, ...rest] = args.filter(a => a !== '--overlay');
   const err = await pg.evaluate('window.ERR'); if (err) { console.error(err); process.exit(1); }
   if (overlay) await pg.evaluate(() => { document.getElementById('gl').style.display = 'none';
     document.documentElement.style.background = document.body.style.background = 'transparent'; });
-  const shot = (file) => pg.screenshot({ path: path.join(outDir, file), clip: { x: 0, y: 0, width: 1920, height: 1080 }, omitBackground: overlay });
+  // overlay frames are read straight from the 2D canvas: transparent page screenshots keep stale pixels
+  // from previous frames in headless Chromium (rings/stars piled up)
+  const shot = async (file) => {
+    if (!overlay) return pg.screenshot({ path: path.join(outDir, file), clip: { x: 0, y: 0, width: 1920, height: 1080 } });
+    const url = await pg.evaluate(() => document.getElementById('ov').toDataURL('image/png'));
+    fs.writeFileSync(path.join(outDir, file), Buffer.from(url.split(',')[1], 'base64')); };
   if (mode === 'times') {
     for (const t of JSON.parse(rest[0])) { await pg.evaluate(`window.renderAt(${t})`); await shot(`t_${t.toFixed(3).padStart(6, '0')}.png`); }
   } else {
