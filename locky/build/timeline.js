@@ -1,5 +1,5 @@
 window.TL = {
-  "dur": 8.3,
+  "dur": 12.3,
   "glassZ": 2.75,
   "z0": -1.0,
   "stepRate": 6.0,
@@ -12,5 +12,9 @@ window.TL = {
   "embarrassed": 5.73,
   "waveStart": 6.23,
   "waveDown": 6.8,
-  "wink": 7.25
+  "wink": 7.25,
+  "settle": 8.35,
+  "wave2": 9.8,
+  "wave2End": 10.75,
+  "fade": 11.4
 }

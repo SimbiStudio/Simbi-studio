@@ -23,7 +23,7 @@ const pz = (t) => t >= 0 ? zAt(t) : T.z0 + V0 * t;                // path, extra
 // ---------- walk cycle with planted feet (2-bone IK) ----------
 // Leg geometry from the GLB (glTF space, y up, +z forward): hip joint, thigh, shin, ankle height, ankle->ball.
 const LEG = { hipY: 0.270, hipZ: -0.006, L1: 0.082, L2: 0.141, ank: 0.047, ball: 0.109 };
-const DUTY = 0.5, LIFT = 0.06, ROLL = 0.5, SLAP = -0.15;
+const DUTY = 0.5, LIFT = 0.05, ROLL = 0.42, SLAP = -0.07;
 // ankle target for one foot (absolute path z), foot pitch psi (+ = toes down) and stance flag
 const footAt = (t, off) => {
   const W = T.stepRate / 2, c = t * W + off, k = Math.floor(c), f = c - k;
@@ -40,7 +40,7 @@ const footAt = (t, off) => {
            psi: lerp(ROLL, SLAP, ss(0, 0.8, u)), stance: 0 };
 };
 // smoothed foot target: Gaussian over +-0.036 s (stance stays exact, transitions lose their velocity kinks)
-const FK = [-3, -2, -1, 0, 1, 2, 3].map(i => [i * 0.012, Math.exp(-0.5 * (i * 0.012 / 0.016) ** 2)]);
+const FK = [-4, -3, -2, -1, 0, 1, 2, 3, 4].map(i => [i * 0.012, Math.exp(-0.5 * (i * 0.012 / 0.022) ** 2)]);
 const FKW = FK.reduce((a, [, w]) => a + w, 0);
 const footS = (t, off) => { const o = { y: 0, z: 0, psi: 0, stance: 0 };
   for (const [d, w] of FK) { const f = footAt(t + d, off); o.y += f.y * w; o.z += f.z * w; o.psi += f.psi * w; o.stance += f.stance * w; }
@@ -73,6 +73,9 @@ const EX = [
   [T.embarrassed, { 'Eyes_ .> <.': 1 }, { 'Mouth_Smirk L': 1 }],
   [T.waveStart + 0.05, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 1 }],
   [T.wink, { 'Eyes_Wink R': 1 }, { 'Mouth_Joy': 1 }],
+  [T.settle, {}, { 'Mouth_Joy': 0.85 }],
+  [T.wave2, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 1 }],
+  [T.wave2End + 0.1, {}, { 'Mouth_Joy': 0.85 }],
 ];
 const exprAt = (t) => {
   let i = 0; while (i < EX.length - 1 && EX[i + 1][0] <= t) i++;
@@ -91,7 +94,7 @@ const exprAt = (t) => {
     const sh = { 'Mouth_U': pucker * (0.55 + 0.3 * wh.amp + 0.15 * wh.pitch), 'Mouth_O': 0.35 * wh.slow * (1 - wh.amp) + 0.15 * (1 - wh.pitch) * wh.amp,
                  'Mouth_Smirk L': 0.35 * wh.slow, 'Mouth_Joy': 0.55 * (1 - wh.slow) };
     for (const k in sh) w[k] = (w[k] || 0) + sh[k] * wm; }
-  const blinks = [T.peekStart + 0.13, T.peekStart + 0.41];
+  const blinks = [T.peekStart + 0.13, T.peekStart + 0.41, T.settle + 0.7, T.wave2End + 0.45, T.fade + 0.15];
   let b = 0; blinks.forEach(bt => { b = Math.max(b, 1 - cl(Math.abs(t - bt) / 0.075)); });
   const open = 1 - cl((w['Eyes_Joy'] || 0) + (w['Eyes_ .> <.'] || 0) + (w['Eyes_ T T'] || 0) + (w['Eyes_Wink R'] || 0) + (w['Eyes_Fun'] || 0));
   if (b > 0) w['Eyes_Close'] = (w['Eyes_Close'] || 0) + b * open;
@@ -116,42 +119,42 @@ window.stateAt = (t, eng) => {
     x = lerp(-0.3, 0, sm(0, T.impact, t)) + 0.02 * Math.sin(t * 1.3);
     const lookAround = 0.42 * Math.sin(1.05 * t + 0.4) + 0.12 * Math.sin(2.3 * t);
     rotY = 0 + lookAround * 0.35;   // facing camera, head-in-the-clouds sway
-    hipsX = -0.30 + 0.045 * Math.cos(2 * phi);
+    hipsX = -0.30 + 0.025 * Math.cos(2 * phi);
     // feet: absolute path z -> root-local
     const fL = footS(t, 0), fR = footS(t, 0.5);
     fL.zl = fL.z - z; fR.zl = fR.z - z;
     // weight shifts over the planted foot (smoothed stance difference)
     const sw = (o) => { const c = t * T.stepRate / 2 + o, f = c - Math.floor(c); return Math.sin(PI * cl(f / DUTY)); };
-    hipsZ = 0.04 * (sw(0) - sw(0.5)) * ss(0, 0.1, t);
+    hipsZ = 0.03 * (sw(0) - sw(0.5)) * ss(0, 0.1, t);
     // exact hip joints: Hips rotation applied to the UpperLeg offsets
     const qh = qm(qa(X, hipsX), qa(Z, hipsZ));
     const rotv = (q, v) => { const [qx, qy, qz, qw] = q, u = [qx, qy, qz]; const c1 = V.cross(u, v).map((e, i) => e + qw * v[i]); const c2 = V.cross(u, c1); return v.map((e, i) => e + 2 * c2[i]); };
     const oL = rotv(qh, [0.154, 0.015, 0.014]), oR = rotv(qh, [-0.158, 0.015, 0.014]);
     const HIPS0 = [0.0016, 0.2551, -0.0201];
     // hips height = as high as the planted legs allow (smooth-min), hips settle slightly at rest
-    const reach = 0.95 * (LEG.L1 + LEG.L2);
+    const reach = 0.965 * (LEG.L1 + LEG.L2);
     const maxHips = (f, o) => f.y + Math.sqrt(Math.max(0, reach * reach - (f.zl - (HIPS0[2] + o[2])) ** 2)) - (HIPS0[1] + o[1]);
-    const smin = (a, b, k = 0.006) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
+    const smin = (a, b, k = 0.01) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
     hipsY = smin(smin(-0.016, maxHips(fL, oL)), maxHips(fR, oR), 0.008);
     const HL = { y: HIPS0[1] + hipsY + oL[1], z: HIPS0[2] + oL[2] }, HR = { y: HIPS0[1] + hipsY + oR[1], z: HIPS0[2] + oR[2] };
     Object.assign(legL, legIK(HL, fL), { roll: hipsZ }); Object.assign(legR, legIK(HR, fR), { roll: hipsZ });
     // arms swing against the legs (left arm back when the left foot lands)
     const cL = t * T.stepRate / 2;
-    armL.z = -0.5 * Math.cos(TAU * cL); armR.z = 0.5 * Math.cos(TAU * cL);
-    armL.el = 0.3 + 0.35 * Math.max(0, armL.z / 0.5); armR.el = 0.3 + 0.35 * Math.max(0, armR.z / 0.5);   // elbow bends on the forward swing
+    armL.z = -0.38 * Math.cos(TAU * cL); armR.z = 0.38 * Math.cos(TAU * cL);
+    armL.el = 0.3 + 0.25 * Math.max(0, armL.z / 0.38); armR.el = 0.3 + 0.25 * Math.max(0, armR.z / 0.38);   // elbow bends on the forward swing
     armL.x = -0.95 + 0.06 * Math.cos(TAU * cL) ** 2; armR.x = armL.x;
     // contact/down = squash, passing/up = stretch (slight lag after the foot lands), volume preserved
     const dn = Math.cos(TAU * T.stepRate * (t - 0.035));
-    sqScale = [1 + 0.03 * dn, 1 - 0.055 * dn, 1 + 0.03 * dn];
+    sqScale = [1 + 0.018 * dn, 1 - 0.032 * dn, 1 + 0.018 * dn];
     // overlap: shoulders twist with the arm swing, hands drag behind the arms
-    rotY += 0.06 * Math.sin(TAU * cL);
-    armL.hand = 0.35 * Math.sin(TAU * cL - 0.9 + PI); armR.hand = -armL.hand;
+    rotY += 0.035 * Math.sin(TAU * cL);
+    armL.hand = 0.25 * Math.sin(TAU * cL - 0.9 + PI); armR.hand = -armL.hand;
     // TAKE: last ~0.12 s he notices the glass: head snaps level, body stiffens/stretches, arms flinch up
     const take = ss(T.impact - 0.15, T.impact - 0.09, t);
     hipsX = lerp(hipsX, -0.04, take);
     sqScale = [sqScale[0] * (1 - 0.04 * take), sqScale[1] * (1 + 0.08 * take), sqScale[2] * (1 - 0.04 * take)];
     armL.x += 0.45 * take; armR.x = armL.x; armL.el += 0.5 * take; armR.el += 0.5 * take;
-    shPitch = 0.08 * Math.sin(TAU * T.stepRate * t - 1.4);     // shackle bobs a beat behind the body
+    shPitch = 0.05 * Math.sin(TAU * T.stepRate * t - 1.4);     // shackle bobs a beat behind the body
     shRoll = -0.07 * Math.sin(TAU * cL - 0.6) * (1 - take);
     // whistling: head goes up a bit on the loud notes and tilts with the melody
     let wa = 0, wp = 0; for (const d of [-0.06, -0.03, 0, 0.03, 0.06]) { const w0 = whistleAt(t + d); wa += w0.amp / 5; wp += (w0.pitch - 0.5) * w0.amp / 5; }
@@ -219,8 +222,9 @@ window.stateAt = (t, eng) => {
       armL.x = -1.12 + 0.35 * emb; armR.x = armL.x; armL.el = 0.4 + 0.8 * emb; armR.el = armL.el;
       armL.z = 0.3 * emb; armR.z = 0.3 * emb;
       const wv = ss(T.waveStart, T.waveStart + 0.22, t) * (1 - ss(T.waveDown - 0.15, T.waveDown + 0.15, t));
-      const wv2 = ss(T.wink - 0.1, T.wink + 0.15, t);
-      const wave = Math.max(wv, wv2 * 0.8);
+      const wv2 = ss(T.wink - 0.1, T.wink + 0.15, t) * (1 - ss(T.settle - 0.2, T.settle + 0.25, t));
+      const wv3 = ss(T.wave2, T.wave2 + 0.25, t) * (1 - ss(T.wave2End - 0.2, T.wave2End + 0.15, t));
+      const wave = Math.max(wv, wv2 * 0.8, wv3 * 0.65);
       armR.x = lerp(armR.x, 0.75, wave);
       armR.z = lerp(armR.z, 0.15, wave);
       armR.el = lerp(armR.el, 0.35 + 0.42 * Math.sin((t - T.waveStart) * TAU * 2.6), wave);
@@ -236,13 +240,21 @@ window.stateAt = (t, eng) => {
         y += 0.07 * air;
         sqScale = [sqScale[0] * (1 - 0.04 * air + 0.06 * land), sqScale[1] * (1 + 0.07 * air - 0.09 * land), sqScale[2] * (1 - 0.04 * air + 0.06 * land)];
       }
-      hipsZ += -0.09 * ss(T.wink - 0.1, T.wink + 0.25, t);
-      hipsX = 0.05 * ss(T.wink - 0.1, T.wink + 0.25, t);
+      hipsZ += -0.09 * ss(T.wink - 0.1, T.wink + 0.25, t) * (1 - 0.6 * ss(T.settle, T.settle + 0.6, t));
+      hipsX = 0.05 * ss(T.wink - 0.1, T.wink + 0.25, t) * (1 - 0.5 * ss(T.settle, T.settle + 0.6, t));
+      // held final pose, kept alive: slow happy sway + head tilt, little bounce into the second wave
+      const hold = ss(T.settle, T.settle + 0.6, t);
+      hipsZ += 0.035 * Math.sin((t - T.settle) * TAU * 0.45) * hold;
+      hipsX += 0.02 * Math.sin((t - T.settle) * TAU * 0.3 + 1) * hold;
+      const bnc = Math.sin(PI * cl((t - (T.wave2 - 0.12)) / 0.32));
+      y += 0.025 * bnc; sqScale = [sqScale[0] * (1 - 0.02 * bnc), sqScale[1] * (1 + 0.035 * bnc), sqScale[2] * (1 - 0.02 * bnc)];
+      armL.x += 0.06 * Math.sin((t - T.settle) * TAU * 0.45 + 0.6) * hold;
       legL.x = 0; legR.x = 0; legL.k = 0; legR.k = 0;
       // shackle follow-through: lags the pop-ups and the hop, shivers when shy
       shPitch = -0.22 * wob(t - T.peekStart - 0.25, 3, 4.5) * (t > T.peekStart + 0.25 ? 1 : 0)
         - 0.12 * wob(t - T.waveStart - 0.12, 3.4, 5) * (t > T.waveStart + 0.12 ? 1 : 0)
-        + 0.2 * wob(wk - 0.3, 3.6, 5) * (wk > 0.3 ? 1 : 0) - 0.1 * Math.sin(PI * cl(wk / 0.28));
+        + 0.2 * wob(wk - 0.3, 3.6, 5) * (wk > 0.3 ? 1 : 0) - 0.1 * Math.sin(PI * cl(wk / 0.28))
+        - 0.12 * wob(t - T.wave2 - 0.15, 3.4, 5) * (t > T.wave2 + 0.15 ? 1 : 0) + 0.03 * Math.sin((t - T.settle) * TAU * 0.45 - 0.9) * ss(T.settle, T.settle + 0.6, t);
       shRoll = 2.5 * shy + 0.05 * Math.sin((t - T.waveStart) * TAU * 1.6 - 0.8) * wave;
       const br = Math.sin(t * TAU * 0.9) * 0.012;
       sqScale = [sqScale[0] - br * 0.5, sqScale[1] + br, sqScale[2] - br * 0.5];
@@ -270,7 +282,7 @@ window.stateAt = (t, eng) => {
   if (ti > 0) { const sh = Math.exp(-ti * 10) * 0.06; camPos = [camPos[0] + sh * Math.sin(ti * 83), camPos[1] + sh * Math.sin(ti * 67 + 1), camPos[2]];
     camPos[2] -= 0.16 * ss(0, 0.035, ti) * (1 - ss(0.06, 0.45, ti)); }   // punch-in on the hit
   const endEase = ss(T.peekStart - 0.2, T.peekStart + 1.0, t);
-  camPos[2] += 0.12 * endEase;
+  camPos[2] += 0.12 * endEase - 0.1 * ss(T.settle, T.dur, t);      // slow push-in on the held pose
 
   return {
     bg: BG, cam: { pos: camPos, target, fov: 32 },

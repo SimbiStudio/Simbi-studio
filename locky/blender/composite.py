@@ -1,7 +1,7 @@
 # Final comp: background plate (same maths as the v1 BG shader) + Blender RGBA frames
 # + 2D glass FX from the WebGL overlay pass + audio  ->  MP4.
 #   python3 composite.py [blender_frames_dir] [overlay_dir] [audio.wav] [out.mp4]
-import os, sys, pathlib, subprocess, tempfile
+import os, re, sys, json, pathlib, subprocess, tempfile
 import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -12,6 +12,7 @@ OV = (pathlib.Path(a[1]) if len(a) > 1 else ROOT / 'frames_overlay').resolve()
 AU = pathlib.Path(a[2]) if len(a) > 2 else ROOT / 'output' / 'locky_sfx_v2_elevenlabs.wav'
 OUT = pathlib.Path(a[3]) if len(a) > 3 else ROOT / 'output' / 'locky_entrada_choque_v2.mp4'
 W, H = 1920, 1080
+TL = json.loads(re.sub(r'^window\.TL\s*=\s*', '', (ROOT / 'build' / 'timeline.js').read_text()))
 STEP = int(os.environ.get('STEP', '1'))          # 2 = 30 fps delivery from the 60 fps timeline
 FPS = 60 // STEP
 
@@ -37,7 +38,7 @@ subprocess.run(['ffmpeg', '-v', 'error', '-y',
     '-framerate', str(FPS), '-i', str(tmp / 'b_%05d.png'),
     '-framerate', str(FPS), '-i', str(tmp / 'o_%05d.png'),
     '-i', str(AU),
-    '-filter_complex', '[0][1]overlay=shortest=1[a];[a][2]overlay=shortest=1,format=yuv420p[v]',
+    '-filter_complex', '[0][1]overlay=shortest=1[a];[a][2]overlay=shortest=1' + (f',fade=t=out:st={TL["fade"]}:d={TL["dur"] - TL["fade"]}' if 'fade' in TL else '') + ',format=yuv420p[v]',
     '-map', '[v]', '-map', '3:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16',
     '-c:a', 'aac', '-b:a', '192k', '-shortest', str(OUT)], check=True)
 print('wrote', OUT)
