@@ -11,7 +11,7 @@ eval(fs.readFileSync(path.join(B, 'engine.js'), 'utf8').replace(/class Engine[\s
 if (SCENE) {
   eval(fs.readFileSync(path.join(B, 'lib.js'), 'utf8'));
   eval(fs.readFileSync(path.join(B, 'scenes', SCENE + '.js'), 'utf8'));
-  window.TL = { dur: window.SCENE.dur, glassZ: 99 }; window.stateAt = window.SCENE.stateAt;
+  window.TL = { ...(window.SCENE.T || {}), dur: window.SCENE.dur, glassZ: 99 }; window.stateAt = window.SCENE.stateAt;
 } else {
   eval(fs.readFileSync(path.join(B, 'timeline.js'), 'utf8'));
   eval(fs.readFileSync(path.join(B, 'whistle_env.js'), 'utf8'));
