@@ -60,6 +60,7 @@ const whistleAt = (t) => { const W = window.WHISTLE; if (!W) return { amp: 0, pi
 const EX = [
   [0.00, { 'Eyes_Joy': 1 }, { 'Mouth_O': 0.8 }],
   [T.whistleEnd + 0.05, { 'Eyes_Joy': 1 }, { 'Mouth_Joy': 0.7 }],
+  [T.impact - 0.12, { 'Eyes_ O O': 1 }, { 'Mouth_O': 0.45 }],      // take: "uh-oh"
   [T.impact, { 'Eyes_ .> <.': 1 }, { 'Mouth_O': 1.0 }],
   [T.slideStart + 0.15, { 'Eyes_ T T': 1 }, { 'Mouth_Sad': 1 }],
   [T.peekStart, { 'Eyes_ O O': 0.0 }, { 'Mouth_I': 0.6 }],
@@ -70,7 +71,7 @@ const EX = [
 const exprAt = (t) => {
   let i = 0; while (i < EX.length - 1 && EX[i + 1][0] <= t) i++;
   const cur = EX[i], prev = EX[Math.max(0, i - 1)];
-  const fade = (cur[0] === T.impact) ? 0.035 : 0.09;
+  const fade = (cur[0] === T.impact || cur[0] === T.impact - 0.12) ? 0.03 : 0.06;
   const s = i === 0 ? 1 : sm(cur[0], cur[0] + fade, t);
   const w = {};
   const add = (o, k) => { for (const n in o) w[n] = (w[n] || 0) + o[n] * k; };
@@ -100,7 +101,7 @@ window.stateAt = (t, eng) => {
   let glassOn = false, glassC = [0, 0.72];
   const armL = { x: -1.12, z: 0, el: 0.15 }, armR = { x: -1.12, z: 0, el: 0.15 };
   const legL = { x: 0, k: 0 }, legR = { x: 0, k: 0 };
-  let shadowA = 0.55, press = 0;
+  let shadowA = 0.55, press = 0, shPitch = 0, shRoll = 0;
 
   const walking = t < T.impact;
   if (walking) {
@@ -133,11 +134,22 @@ window.stateAt = (t, eng) => {
     armL.z = -0.5 * Math.cos(TAU * cL); armR.z = 0.5 * Math.cos(TAU * cL);
     armL.el = 0.3 + 0.35 * Math.max(0, armL.z / 0.5); armR.el = 0.3 + 0.35 * Math.max(0, armR.z / 0.5);   // elbow bends on the forward swing
     armL.x = -0.95 + 0.06 * Math.abs(Math.cos(TAU * cL)); armR.x = armL.x;
-    const bounce = Math.cos(2 * phi);
-    sqScale = [1 - 0.03 * bounce, 1 + 0.045 * bounce, 1 - 0.03 * bounce];
+    // contact/down = squash, passing/up = stretch (slight lag after the foot lands), volume preserved
+    const dn = Math.cos(TAU * T.stepRate * (t - 0.035));
+    sqScale = [1 + 0.03 * dn, 1 - 0.055 * dn, 1 + 0.03 * dn];
+    // overlap: shoulders twist with the arm swing, hands drag behind the arms
+    rotY += 0.06 * Math.sin(TAU * cL);
+    armL.hand = 0.35 * Math.sin(TAU * cL - 0.9 + PI); armR.hand = -armL.hand;
+    // TAKE: last ~0.12 s he notices the glass: head snaps level, body stiffens/stretches, arms flinch up
+    const take = ss(T.impact - 0.15, T.impact - 0.09, t);
+    hipsX = lerp(hipsX, -0.04, take);
+    sqScale = [sqScale[0] * (1 - 0.04 * take), sqScale[1] * (1 + 0.08 * take), sqScale[2] * (1 - 0.04 * take)];
+    armL.x += 0.45 * take; armR.x = armL.x; armL.el += 0.5 * take; armR.el += 0.5 * take;
+    shPitch = 0.08 * Math.sin(TAU * T.stepRate * t - 1.4);     // shackle bobs a beat behind the body
+    shRoll = -0.07 * Math.sin(TAU * cL - 0.6) * (1 - take);
     // whistling: head goes up a bit on the loud notes and tilts with the melody
     const wh = whistleAt(t);
-    hipsX += -0.06 * wh.amp; hipsZ += 0.05 * (wh.pitch - 0.5) * wh.amp;
+    hipsX += -0.06 * wh.amp * (1 - take); hipsZ += 0.05 * (wh.pitch - 0.5) * wh.amp;
 
     sqPivot = [x, 0, z];
   } else {
@@ -150,7 +162,7 @@ window.stateAt = (t, eng) => {
     const sag = 0.035 * ss(T.impact + 0.15, T.slideStart, t);
     y = -sag - drop;
     // hit hard, bounce off the glass a few cm, get sucked back on and stick (with a little jelly settle)
-    const PRESS = [[0, 0], [0.035, 0.21], [0.10, 0.05], [0.165, -0.04], [0.26, 0.15], [0.36, 0.10], [0.48, 0.125], [0.62, 0.115]];
+    const PRESS = [[0, 0], [0.035, 0.21], [0.075, 0.21], [0.135, 0.05], [0.20, -0.04], [0.30, 0.15], [0.40, 0.10], [0.52, 0.125], [0.66, 0.115]];
     const kf = (pts, tt) => { if (tt >= pts[pts.length - 1][0]) return pts[pts.length - 1][1]; let i = 0; while (pts[i + 1][0] < tt) i++;
       const [t0, v0] = pts[i], [t1, v1] = pts[i + 1]; return lerp(v0, v1, sm(t0, t1, tt)); };
     press = kf(PRESS, ti) + 0.008 * wob(ti - 0.62, 5, 6);
@@ -163,7 +175,12 @@ window.stateAt = (t, eng) => {
     const q = cl(press / 0.21, -0.25, 1), settle = 0.55 * ss(0.2, 0.6, ti);
     const w = Math.max(q, settle) + 0.2 * jig * ss(0.2, 0.4, ti);
     sqPivot = [x, faceY, T.glassZ];
-    sqScale = [1 + 0.15 * w, 1 + 0.08 * w, 1 - 0.36 * w];
+    sqScale = [1 + 0.24 * w, 1 + 0.12 * w, 1 - 0.36 * w];
+    const brs = 0.012 * Math.sin(ti * TAU * 1.2) * ss(0.55, 0.75, ti);            // breathing: moving hold
+    sqScale[1] += brs; sqScale[0] -= brs * 0.5;
+    // shackle whips onto the glass and wobbles; jitters on every stick-slip of the slide
+    shPitch = 0.45 * wob(ti, 4.5, 4.5) + 0.06 * Math.sin(TAU * T.slideStutters * cl((t - T.slideStart) / (T.slideEnd - T.slideStart))) * ss(T.slideStart, T.slideStart + 0.1, t);
+    shRoll = 0.12 * wob(ti - 0.02, 3.3, 4);
     hipsX = 0.08; hipsZ = 0.04 * jig;
     // starfish splat: arms and legs fly forward and flatten on the glass, then twitch
     const fling = outBack(cl(ti / 0.09), 2.4);
@@ -183,14 +200,16 @@ window.stateAt = (t, eng) => {
       z = T.glassZ - 0.62; x = 0.0;
       const rise1 = outBack(cl(tp / 0.42), 1.5);
       const rise2 = outBack(cl((t - T.waveStart) / 0.38), 1.6);
-      y = lerp(-1.25, -0.30, rise1) + lerp(0, 0.18, rise2);
+      // anticipation dip before the wave pop-up
+      const dip = Math.sin(PI * cl((t - (T.waveStart - 0.14)) / 0.14));
+      y = lerp(-1.25, -0.30, rise1) + lerp(0, 0.18, rise2) - 0.035 * dip;
       hipsZ = lerp(0, 0.16, ss(0, 0.35, tp)) * (1 - ss(T.embarrassed - 0.05, T.embarrassed + 0.2, t))
         + lerp(0, -0.10, ss(T.embarrassed - 0.05, T.embarrassed + 0.2, t)) * (1 - ss(T.waveStart, T.waveStart + 0.3, t))
         + 0.06 * Math.sin((t - T.waveStart) * TAU * 1.6) * ss(T.waveStart, T.waveStart + 0.3, t) * (1 - ss(T.waveDown - 0.1, T.waveDown + 0.1, t));
       const emb = ss(T.embarrassed - 0.03, T.embarrassed + 0.12, t) * (1 - ss(T.waveStart - 0.1, T.waveStart + 0.15, t));
       const shy = wob(t - T.embarrassed, 3.5, 6) * 0.04 * (t > T.embarrassed ? 1 : 0);
       sqPivot = [x, y, z];
-      sqScale = [1 + 0.035 * emb + shy, 1 - 0.05 * emb - shy, 1 + 0.035 * emb];
+      sqScale = [1 + 0.035 * emb + shy + 0.04 * dip, 1 - 0.05 * emb - shy - 0.07 * dip, 1 + 0.035 * emb + 0.04 * dip];
       armL.x = -1.12 + 0.35 * emb; armR.x = armL.x; armL.el = 0.4 + 0.8 * emb; armR.el = armL.el;
       armL.z = 0.3 * emb; armR.z = 0.3 * emb;
       const wv = ss(T.waveStart, T.waveStart + 0.22, t) * (1 - ss(T.waveDown - 0.15, T.waveDown + 0.15, t));
@@ -199,16 +218,26 @@ window.stateAt = (t, eng) => {
       armR.x = lerp(armR.x, 0.75, wave);
       armR.z = lerp(armR.z, 0.15, wave);
       armR.el = lerp(armR.el, 0.35 + 0.42 * Math.sin((t - T.waveStart) * TAU * 2.6), wave);
+      armR.hx = 0.45 * Math.sin((t - T.waveStart) * TAU * 2.6 - 1.1) * wave;          // hand flops after the forearm
       // closing beat (no logo any more): little hop + head tilt into the wink
       const wk = t - T.wink;
+      // anticipation crouch -> hop (stretched in the air) -> squash on landing -> settle
+      const crouch = Math.sin(PI * cl((t - (T.wink - 0.16)) / 0.16));
+      y -= 0.03 * crouch; sqScale = [sqScale[0] * (1 + 0.05 * crouch), sqScale[1] * (1 - 0.08 * crouch), sqScale[2] * (1 + 0.05 * crouch)];
       if (wk > 0) {
-        const fl = wob(wk, 3.2, 7);
-        y += 0.06 * Math.max(0, Math.sin(PI * cl(wk / 0.28)));
-        sqScale = [sqScale[0] * (1 - 0.05 * fl), sqScale[1] * (1 + 0.08 * fl), sqScale[2] * (1 - 0.05 * fl)];
+        const air = Math.max(0, Math.sin(PI * cl(wk / 0.28)));
+        const land = wob(wk - 0.28, 3.4, 6) * (wk > 0.28 ? 1 : 0);
+        y += 0.07 * air;
+        sqScale = [sqScale[0] * (1 - 0.04 * air + 0.06 * land), sqScale[1] * (1 + 0.07 * air - 0.09 * land), sqScale[2] * (1 - 0.04 * air + 0.06 * land)];
       }
       hipsZ += -0.09 * ss(T.wink - 0.1, T.wink + 0.25, t);
       hipsX = 0.05 * ss(T.wink - 0.1, T.wink + 0.25, t);
       legL.x = 0; legR.x = 0; legL.k = 0; legR.k = 0;
+      // shackle follow-through: lags the pop-ups and the hop, shivers when shy
+      shPitch = -0.22 * wob(t - T.peekStart - 0.25, 3, 4.5) * (t > T.peekStart + 0.25 ? 1 : 0)
+        - 0.12 * wob(t - T.waveStart - 0.12, 3.4, 5) * (t > T.waveStart + 0.12 ? 1 : 0)
+        + 0.2 * wob(wk - 0.3, 3.6, 5) * (wk > 0.3 ? 1 : 0) - 0.1 * Math.sin(PI * cl(wk / 0.28));
+      shRoll = 2.5 * shy + 0.05 * Math.sin((t - T.waveStart) * TAU * 1.6 - 0.8) * wave;
       const br = Math.sin(t * TAU * 0.9) * 0.012;
       sqScale = [sqScale[0] - br * 0.5, sqScale[1] + br, sqScale[2] - br * 0.5];
     }
@@ -224,6 +253,8 @@ window.stateAt = (t, eng) => {
   B['UpperArm_L'] = qm(qa(X, armL.x), qa(Z, -armL.z));
   B['UpperArm_R'] = qm(qa(X, armR.x), qa(Z, armR.z));
   B['LowerArm_L'] = qa(X, armL.el); B['LowerArm_R'] = qa(X, armR.el);
+  // hands: drag (forward/back, mirrored like the arms) + flop (same axis as the elbow)
+  B['Hand_L'] = qm(qa(X, armL.hx || 0), qa(Z, -(armL.hand || 0))); B['Hand_R'] = qm(qa(X, armR.hx || 0), qa(Z, armR.hand || 0));
 
   const root = M.trs([x, y, z], qa(Y, rotY), visible ? [1, 1, 1] : [0, 0, 0]);
 
@@ -237,7 +268,7 @@ window.stateAt = (t, eng) => {
 
   return {
     bg: BG, cam: { pos: camPos, target, fov: 32 },
-    pose: { bones: B, boneT: S, morph: exprAt(t) }, root, sq: { pivot: sqPivot, scale: sqScale },
+    pose: { bones: B, boneT: S, morph: exprAt(t), shackle: qm(qa(X, shPitch), qa(Z, shRoll)) }, root, sq: { pivot: sqPivot, scale: sqScale },
     glass: { z: T.glassZ, on: glassOn, c: glassC },
     shadow: { c: [x, 0.002, z], r: [0.42, 0.3], a: visible && walking ? shadowA : 0 },
     flash: t > T.impact ? 0.5 * Math.exp(-(t - T.impact) * 22) : 0,
@@ -282,5 +313,17 @@ window.drawOverlay = (t, st, eng, cv) => {
         c.save(); c.globalAlpha = Math.sin(a) > 0 ? 1 : 0.75; c.translate(sx, sy); c.rotate(a * 0.8); c.fillStyle = '#ffd84a';
         c.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? sz * 0.42 : sz; const aa = k * PI / 5 - PI / 2; c.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); }
         c.closePath(); c.fill(); c.restore(); } }
+  }
+  // sweat drop when he gets embarrassed (secondary action): pops in, slides down the side of his head, fades
+  const sd = t - (T.embarrassed + 0.06);
+  if (sd > 0 && t < T.waveStart + 0.1) {
+    const head = eng.project([st.x + 0.36, st.y + 1.0 - 0.06 * ss(0.15, 0.5, sd), st.z + 0.25]);
+    const sc = outBack(cl(sd / 0.14), 2.5) * (1 - ss(T.waveStart - 0.15, T.waveStart + 0.1, t)), r = 40 * sc;
+    if (r > 0.5) { c.save(); c.translate(head[0], head[1]);
+      c.fillStyle = '#bfe6ff'; c.strokeStyle = '#3a6fd1'; c.lineWidth = 4 * sc;
+      c.beginPath(); c.moveTo(0, -r * 1.9); c.bezierCurveTo(r * 0.95, -r * 0.5, r, r * 0.9, 0, r); c.bezierCurveTo(-r, r * 0.9, -r * 0.95, -r * 0.5, 0, -r * 1.9);
+      c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.ellipse(-r * 0.32, r * 0.05, r * 0.18, r * 0.32, -0.3, 0, TAU); c.fill();
+      c.restore(); }
   }
 };

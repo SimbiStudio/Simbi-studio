@@ -38,6 +38,7 @@ for (let f = 0; f <= N; f++) {
   frames.push({ t, joints: joints(st.pose), morph: Object.fromEntries(Object.entries(st.pose.morph).map(([k, v]) => [k, +v.toFixed(5)])),
     root: r6(Array.from(st.root)), visible: st.root[0] !== 0 || st.root[5] !== 0,
     sq: { pivot: r6(st.sq.pivot), scale: r6(st.sq.scale) }, glass: { on: st.glass.on ? 1 : 0, c: r6(st.glass.c) },
+    shackle: r6(st.pose.shackle || [0, 0, 0, 1]),
     cam: { pos: r6(st.cam.pos), target: r6(st.cam.target), fov: st.cam.fov }, shadow: +st.shadow.a.toFixed(4), flash: +(st.flash || 0).toFixed(4) });
 }
 fs.writeFileSync(out, JSON.stringify({ fps, dur: T.dur, glassZ: T.glassZ, timeline: T, jointNames: skin.joints.map(ji => nodes[ji].name), frames }));

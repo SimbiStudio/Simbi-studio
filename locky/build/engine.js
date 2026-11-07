@@ -220,6 +220,11 @@ class Engine {
       const m = this.nodes[ji].name === 'neutral_bone' ? (pose.bodyMatrix || jm[hipsIdx]) : jm[k];
       out.set(m, k*16); });
     this.W = W; this.jm = jm; this.hipsIdx = hipsIdx;
+    // shackle secondary motion: its own rotation (pose.shackle = quat) about its base, on top of the hips
+    this.Jsh = null;
+    if (pose.shackle) { const P = [0, 1.0, 0], nk = this.joints.findIndex(ji => this.nodes[ji].name === 'neutral_bone');
+      const R = M.mul(M.mul(M.trs(P, [0,0,0,1], [1,1,1]), M.trs([0,0,0], pose.shackle, [1,1,1])), M.trs([-P[0], -P[1], -P[2]], [0,0,0,1], [1,1,1]));
+      this.Jsh = new Float32Array(out); this.Jsh.set(M.mul(jm[hipsIdx], R), nk * 16); }
     return out;
   }
 
@@ -277,7 +282,10 @@ class Engine {
       if (pb.baseColorTexture) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex[pb.baseColorTexture.index]); gl.uniform1i(u.uTex, 0); gl.uniform1f(u.uHasTex, 1); }
       else gl.uniform1f(u.uHasTex, 0);
       gl.uniform1f(u.uAlphaMode, m.alphaMode === 'BLEND' ? 1 : 0);
-      gl.bindVertexArray(pr.vao); gl.drawElements(gl.TRIANGLES, pr.count, pr.itype, 0); };
+      const sh = this.Jsh && pr.node === 'ShackleMinus';
+      if (sh) gl.uniformMatrix4fv(u.uJ, false, this.Jsh);
+      gl.bindVertexArray(pr.vao); gl.drawElements(gl.TRIANGLES, pr.count, pr.itype, 0);
+      if (sh) gl.uniformMatrix4fv(u.uJ, false, J); };
     this.prims.filter(pr => pr.mat.alphaMode !== 'BLEND').forEach(draw);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
     this.prims.filter(pr => pr.mat.alphaMode === 'BLEND').forEach(draw);

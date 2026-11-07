@@ -33,9 +33,16 @@ body_parts = [o for o in meshes if o.name in ('LockyBody', 'ShackleMinus')]
 
 # rigid body + shackle follow Hips (as in Engine.computeJoints). The v1 engine ignores their glTF node
 # transform (x2.162 scale + offset) and draws the raw vertices, which is what lines up with eyes/mouth.
+# Shackle gets its own bone (child of Hips, pivot at its base, glTF (0, 1.0, 0)) for secondary motion.
+# Bone along +Z with roll 0 -> its local X/Y/Z = glTF X/Y/Z, so anim.js quaternions apply as-is.
+bpy.context.view_layer.objects.active = arm
+bpy.ops.object.mode_set(mode='EDIT')
+eb = arm.data.edit_bones.new('Shackle'); eb.head = (0, 0, 1.0); eb.tail = (0, 0, 1.2); eb.roll = 0
+eb.parent = arm.data.edit_bones['Hips']; eb.use_connect = False
+bpy.ops.object.mode_set(mode='OBJECT')
 for o in body_parts:
     mw = arm.matrix_world.copy()
-    o.parent = arm; o.parent_type = 'BONE'; o.parent_bone = 'Hips'
+    o.parent = arm; o.parent_type = 'BONE'; o.parent_bone = 'Shackle' if o.name == 'ShackleMinus' else 'Hips'
     o.matrix_world = mw
 
 # squash & stretch: armature hangs from an empty placed at the squash pivot
@@ -191,6 +198,9 @@ for fi, f in enumerate(FR):
     cp, ct = v3(f['cam']['pos']), v3(f['cam']['target'])
     cam.location = cp; cam.rotation_quaternion = (ct - cp).to_track_quat('-Z', 'Y')
     cam.keyframe_insert('location', frame=fr); cam.keyframe_insert('rotation_quaternion', frame=fr)
+    # shackle secondary motion
+    qx, qy, qz, qw = f.get('shackle', [0, 0, 0, 1])
+    sb = pb['Shackle']; sb.rotation_quaternion = (qw, qx, qy, qz); sb.keyframe_insert('rotation_quaternion', frame=fr)
     # visibility (character leaves frame after sliding down) and floor shadow only while walking
     if f['visible'] != prev_vis:
         for o in chars:
