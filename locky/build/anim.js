@@ -39,6 +39,12 @@ const footAt = (t, off) => {
   return { y: lerp(a0.y, LEG.ank, ss(0, 1, u)) + LIFT * Math.sin(PI * u), z: lerp(a0.z, z1, sm(0, 1, u)),
            psi: lerp(ROLL, SLAP, ss(0, 0.8, u)), stance: 0 };
 };
+// smoothed foot target: Gaussian over +-0.036 s (stance stays exact, transitions lose their velocity kinks)
+const FK = [-3, -2, -1, 0, 1, 2, 3].map(i => [i * 0.012, Math.exp(-0.5 * (i * 0.012 / 0.016) ** 2)]);
+const FKW = FK.reduce((a, [, w]) => a + w, 0);
+const footS = (t, off) => { const o = { y: 0, z: 0, psi: 0, stance: 0 };
+  for (const [d, w] of FK) { const f = footAt(t + d, off); o.y += f.y * w; o.z += f.z * w; o.psi += f.psi * w; o.stance += f.stance * w; }
+  for (const k in o) o[k] /= FKW; return o; };
 // analytic 2-bone IK in the sagittal plane -> world thigh pitch, knee flex, ankle, toes (bone deltas)
 const legIK = (H, A) => {
   const { L1, L2 } = LEG, dy = A.y - H.y, dz = A.zl - H.z;
@@ -47,7 +53,7 @@ const legIK = (H, A) => {
   const p1 = alpha - beta;                                                // knee forward
   const ky = H.y - L1 * Math.cos(p1), kz = H.z - L1 * Math.sin(p1);
   const p2 = Math.atan2(-(A.zl - kz), -(A.y - ky));
-  return { x: p1, k: p2 - p1, a: p2 - A.psi, toe: Math.max(0, A.psi) * (A.stance ? 1 : 0.4) };
+  return { x: p1, k: p2 - p1, a: p2 - A.psi, toe: Math.max(0, A.psi) };
 };
 
 // ---------- whistle (audio envelope -> mouth) ----------
@@ -112,7 +118,7 @@ window.stateAt = (t, eng) => {
     rotY = 0 + lookAround * 0.35;   // facing camera, head-in-the-clouds sway
     hipsX = -0.30 + 0.045 * Math.cos(2 * phi);
     // feet: absolute path z -> root-local
-    const fL = footAt(t, 0), fR = footAt(t, 0.5);
+    const fL = footS(t, 0), fR = footS(t, 0.5);
     fL.zl = fL.z - z; fR.zl = fR.z - z;
     // weight shifts over the planted foot (smoothed stance difference)
     const sw = (o) => { const c = t * T.stepRate / 2 + o, f = c - Math.floor(c); return Math.sin(PI * cl(f / DUTY)); };
@@ -123,17 +129,17 @@ window.stateAt = (t, eng) => {
     const oL = rotv(qh, [0.154, 0.015, 0.014]), oR = rotv(qh, [-0.158, 0.015, 0.014]);
     const HIPS0 = [0.0016, 0.2551, -0.0201];
     // hips height = as high as the planted legs allow (smooth-min), hips settle slightly at rest
-    const reach = 0.975 * (LEG.L1 + LEG.L2);
+    const reach = 0.95 * (LEG.L1 + LEG.L2);
     const maxHips = (f, o) => f.y + Math.sqrt(Math.max(0, reach * reach - (f.zl - (HIPS0[2] + o[2])) ** 2)) - (HIPS0[1] + o[1]);
     const smin = (a, b, k = 0.006) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
-    hipsY = smin(smin(-0.008, maxHips(fL, oL)), maxHips(fR, oR));
+    hipsY = smin(smin(-0.016, maxHips(fL, oL)), maxHips(fR, oR), 0.008);
     const HL = { y: HIPS0[1] + hipsY + oL[1], z: HIPS0[2] + oL[2] }, HR = { y: HIPS0[1] + hipsY + oR[1], z: HIPS0[2] + oR[2] };
     Object.assign(legL, legIK(HL, fL), { roll: hipsZ }); Object.assign(legR, legIK(HR, fR), { roll: hipsZ });
     // arms swing against the legs (left arm back when the left foot lands)
     const cL = t * T.stepRate / 2;
     armL.z = -0.5 * Math.cos(TAU * cL); armR.z = 0.5 * Math.cos(TAU * cL);
     armL.el = 0.3 + 0.35 * Math.max(0, armL.z / 0.5); armR.el = 0.3 + 0.35 * Math.max(0, armR.z / 0.5);   // elbow bends on the forward swing
-    armL.x = -0.95 + 0.06 * Math.abs(Math.cos(TAU * cL)); armR.x = armL.x;
+    armL.x = -0.95 + 0.06 * Math.cos(TAU * cL) ** 2; armR.x = armL.x;
     // contact/down = squash, passing/up = stretch (slight lag after the foot lands), volume preserved
     const dn = Math.cos(TAU * T.stepRate * (t - 0.035));
     sqScale = [1 + 0.03 * dn, 1 - 0.055 * dn, 1 + 0.03 * dn];
@@ -148,8 +154,8 @@ window.stateAt = (t, eng) => {
     shPitch = 0.08 * Math.sin(TAU * T.stepRate * t - 1.4);     // shackle bobs a beat behind the body
     shRoll = -0.07 * Math.sin(TAU * cL - 0.6) * (1 - take);
     // whistling: head goes up a bit on the loud notes and tilts with the melody
-    const wh = whistleAt(t);
-    hipsX += -0.06 * wh.amp * (1 - take); hipsZ += 0.05 * (wh.pitch - 0.5) * wh.amp;
+    let wa = 0, wp = 0; for (const d of [-0.06, -0.03, 0, 0.03, 0.06]) { const w0 = whistleAt(t + d); wa += w0.amp / 5; wp += (w0.pitch - 0.5) * w0.amp / 5; }
+    hipsX += -0.06 * wa * (1 - take); hipsZ += 0.05 * wp;
 
     sqPivot = [x, 0, z];
   } else {

@@ -223,7 +223,7 @@ sc.render.fps = D['fps']
 sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = 1920, 1080, 100
 sc.render.engine = 'CYCLES'
 cy = sc.cycles
-cy.device = 'CPU'; cy.samples = 24; cy.adaptive_threshold = 0.02; cy.use_denoising = True; cy.denoiser = 'OPENIMAGEDENOISE'; cy.denoising_prefilter = 'FAST'; cy.denoising_quality = 'BALANCED'
+cy.device = 'CPU'; cy.samples = 16; cy.adaptive_threshold = 0.02; cy.use_denoising = True; cy.denoiser = 'OPENIMAGEDENOISE'; cy.denoising_prefilter = 'FAST'; cy.denoising_quality = 'BALANCED'
 sc.render.use_persistent_data = True
 cy.max_bounces = 6; cy.diffuse_bounces = 3; cy.glossy_bounces = 3; cy.transmission_bounces = 4; cy.transparent_max_bounces = 8
 sc.render.film_transparent = True
