@@ -3,7 +3,7 @@ import {AbsoluteFill, Easing, Sequence, interpolate, staticFile, useCurrentFrame
 import {Audio, Video} from '@remotion/media';
 import {Captions} from './Captions';
 import {AVATAR_PAGES, HOOK_PAGES} from './words';
-import {INK, PAPER, SANS, VIVO, WIDE} from './brand';
+import {INK, PAPER, VIVO, WIDE} from './brand';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 const SCENES = ['s1', 's2', 's3', 's4', 's5', 's6'];
@@ -65,6 +65,32 @@ const Fill: React.FC<{src: string; trim?: number; volume?: number; muted?: boole
     style={{width: '100%', height: '100%', objectFit: 'cover'}}
   />
 );
+
+// Talking-head zoom: a jump cut to a new framing on every caption page,
+// alternating tight / tighter, with a slow drift in between.
+const JumpZoom: React.FC<{seqFrom: number; dur: number; scales: [number, number]; origin: string; children: React.ReactNode}> = ({
+  seqFrom,
+  dur,
+  scales,
+  origin,
+  children,
+}) => {
+  const f = useCurrentFrame();
+  const cuts = [0, ...AVATAR_PAGES.map((p) => Math.round(p.start * 30) - seqFrom).filter((c) => c > 6 && c < dur - 6)];
+  const i = cuts.reduce((a, c, j) => (f >= c ? j : a), 0);
+  const local = f - cuts[i];
+  const base = scales[i % 2];
+  return (
+    <AbsoluteFill
+      style={{
+        scale: base * interpolate(local, [0, 4, 40], [1.04, 1, 1.03], {...clamp, easing: Easing.out(Easing.cubic)}),
+        transformOrigin: origin,
+      }}
+    >
+      {children}
+    </AbsoluteFill>
+  );
+};
 
 // ---------- 1. hook: burning report + teaser flashes ----------
 
@@ -162,9 +188,9 @@ const Proof: React.FC = () => (
   <AbsoluteFill style={{backgroundColor: INK}}>
     <div style={{position: 'absolute', top: 960, left: 0, width: 1080, height: 960, overflow: 'hidden'}}>
       <div style={{position: 'absolute', top: -260, left: 0, width: 1080, height: 1920}}>
-        <PushIn dur={96} to={1.08} origin="50% 30%">
+        <JumpZoom seqFrom={110} dur={96} scales={[1.4, 1.62]} origin="50% 27%">
           <Fill src="avatar.mp4" trim={151} />
-        </PushIn>
+        </JumpZoom>
       </div>
     </div>
     <Scan />
@@ -199,29 +225,13 @@ const SceneCard: React.FC<{n: number; src: string}> = ({n, src}) => {
         {n}
       </div>
       <Pill style={{top: 270, right: 80}}>¿IA o real?</Pill>
-      <div style={{position: 'absolute', top: 1420, left: 80, right: 80, display: 'flex', gap: 12}}>
+      <div style={{position: 'absolute', top: 1460, left: 80, right: 80, display: 'flex', gap: 12}}>
         {SCENES.map((_, i) => (
           <div
             key={i}
             style={{flex: 1, height: 8, borderRadius: 4, background: i < n ? PAPER : 'rgba(246,242,236,0.3)'}}
           />
         ))}
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          top: 1460,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          color: PAPER,
-          fontFamily: SANS,
-          fontWeight: 500,
-          fontSize: 34,
-          textShadow: '0 2px 12px rgba(20,18,23,0.9)',
-        }}
-      >
-        Sin testigos · corto de la UNLP
       </div>
     </AbsoluteFill>
   );
@@ -235,9 +245,9 @@ const Grid: React.FC = () => {
     <div
       style={{
         position: 'absolute',
-        top: 840,
-        left: 80,
-        right: 80,
+        top: 905,
+        left: 110,
+        right: 110,
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: 14,
@@ -248,7 +258,7 @@ const Grid: React.FC = () => {
           key={s}
           style={{
             position: 'relative',
-            height: 330,
+            height: 290,
             borderRadius: 18,
             overflow: 'hidden',
             border: `3px solid ${PAPER}`,
@@ -256,8 +266,8 @@ const Grid: React.FC = () => {
             scale: interpolate(f - i * 2, [0, 6], [0.7, 1], {...clamp, easing: Easing.out(Easing.back(1.8))}),
           }}
         >
-          <div style={{position: 'absolute', top: -120, left: -1, width: 302, height: 537}}>
-            <Video src={staticFile(`${s}.mp4`)} muted trimBefore={6} style={{width: 302, height: 537}} />
+          <div style={{position: 'absolute', top: -110, left: -1, width: 284, height: 505}}>
+            <Video src={staticFile(`${s}.mp4`)} muted trimBefore={6} style={{width: 284, height: 505}} />
           </div>
           <div
             style={{
@@ -315,24 +325,24 @@ export const Reel: React.FC = () => {
       </Sequence>
 
       <Sequence name="Close A" from={476} durationInFrames={96}>
-        <PushIn dur={96} to={1.06} origin="50% 25%">
+        <JumpZoom seqFrom={476} dur={96} scales={[1.22, 1.36]} origin="50% 22%">
           <Fill src="avatar.mp4" trim={279} />
-        </PushIn>
+        </JumpZoom>
         <Sequence from={3} name="Grid">
           <Grid />
         </Sequence>
       </Sequence>
       <Sequence name="Close B" from={572} durationInFrames={62}>
-        <PushIn dur={62} from={1.18} to={1.24} origin="50% 25%">
+        <JumpZoom seqFrom={572} dur={62} scales={[1.45, 1.72]} origin="50% 27%">
           <Fill src="avatar.mp4" trim={402} />
-        </PushIn>
+        </JumpZoom>
       </Sequence>
 
       {/* captions */}
       <Captions pages={HOOK_PAGES} top={360} size={104} until={110 / 30} />
       {f >= 110 && f < 206 && <Captions pages={AVATAR_PAGES} top={830} size={70} until={206 / 30} />}
-      {f >= 476 && f < 572 && <Captions pages={AVATAR_PAGES} top={735} size={62} until={572 / 30} />}
-      {f >= 572 && <Captions pages={AVATAR_PAGES} top={1180} size={92} />}
+      {f >= 476 && f < 572 && <Captions pages={AVATAR_PAGES} top={808} size={60} until={572 / 30} />}
+      {f >= 572 && <Captions pages={AVATAR_PAGES} top={1250} size={96} />}
 
       {/* sound: music bed ducked under the voice, whooshes on cuts */}
       <Audio

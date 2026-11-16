@@ -32,8 +32,9 @@ Correcciones al handoff: en 9:27 todavía es el bar; el auto arranca en 9:30.40.
 Reedición después de analizar reels del nicho «IA vs real» (vidIQ solo para análisis). Cambios:
 - 21,2 s en vez de 28,4 s. Gancho con voz desde el cuadro 1 y cuatro destellos de escenas en «Y hay tres más».
 - Prueba en pantalla dividida: arriba un escaneo del corto que termina en «0 escenas con IA detectadas», abajo el avatar.
-- Seis escenas de 1,5 s con acercamiento lento, número que entra con rebote, «¿IA o real?» y barra de progreso.
+- Seis escenas de 1,5 s con acercamiento lento, número que entra con rebote, «¿IA o real?» y barra de progreso (sin línea de crédito del corto).
 - Cierre con grilla de las seis escenas numeradas y salto de plano en «Ah, y yo tampoco soy real.», corte seco en «real» para el loop.
+- v3: zoom fuerte al avatar con salto de plano en cada frase (1,4 a 1,7x en la prueba y el final).
 - Subtítulos palabra por palabra (Instrument Sans 700, palabra activa en vivo #F04A97), nunca sobre la cara.
 - Música de ElevenLabs (eleven_music_v2_5) bajo la voz y más arriba en las escenas, whoosh en cada corte. Loudness -14 LUFS.
 
