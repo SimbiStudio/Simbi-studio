@@ -102,12 +102,13 @@ def credit():
 # Hook over the burning report
 headline("t_hook1", "Esta escena no se filmó.")
 headline("t_hook2", "Hay tres más. ¿Cuáles?")
-# Avatar part 2 (subtitle = on-screen text)
-headline("t_proof", "Una IA analizó el corto y no encontró ninguna.", size=72)
+# Avatar parts: subtitles at chest height so they never cover the face
+SUB_Y = int(H * 0.62)
+headline("t_proof", "Una IA analizó el corto y no encontró ninguna.", size=72, center_y=SUB_Y)
 # Avatar part 3, subtitles in three beats
-headline("t_close1", "Comentá los tres números", size=80)
-headline("t_close2", "y mañana te mostramos cuáles eran.", size=72)
-headline("t_close3", "Ah, y yo tampoco soy real.", size=72)
+headline("t_close1", "Comentá los tres números", size=80, center_y=SUB_Y)
+headline("t_close2", "y mañana te mostramos cuáles eran.", size=72, center_y=SUB_Y)
+headline("t_close3", "Ah, y yo tampoco soy real.", size=72, center_y=SUB_Y)
 # Scene numbers + credit
 for i in range(1, 7):
     number(i)

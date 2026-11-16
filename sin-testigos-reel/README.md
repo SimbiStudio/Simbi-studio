@@ -22,7 +22,8 @@ Fuentes: Instrument Sans y Archivo (variables, Google Fonts). Con `-` como avata
 
 Correcciones al handoff: en 9:27 todavía es el bar; el auto arranca en 9:30.40. El auto que se va termina en 13:00.07 (después ya son los dos hombres en el camino). El amuleto se toma desde 3:53 porque en 3:55 la mano lo tapa.
 
+## Avatar
+`avatar-shot-20261116-e82a6d46.mp4` (Drive, 1080x1920, 30 fps, 16,3 s). Los subtítulos del cierre cambian en las pausas de la voz: 23,62 s y 25,91 s del reel. En las partes del avatar los subtítulos van a la altura del pecho (62 %) para no taparle la cara.
+
 ## Pendiente
-- Archivo del avatar de HeyGen (`avatar-shot-20261116-e82a6d46_1.mp4`): falta para las partes 2 y 3 y la voz del gancho.
-- Ajustar los cortes de los subtítulos del cierre con la voz real.
 - Permiso del equipo del corto y de los actores.

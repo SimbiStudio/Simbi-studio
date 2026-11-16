@@ -79,7 +79,7 @@ ffmpeg -v error -y \
 # Text overlays + hook voice + clicks, then loudness to -14 LUFS for Instagram.
 o() { echo "-loop 1 -t 28.4 -framerate 30 -i $OV/$1.png"; }
 OVL=(t_hook1 t_hook2 t_proof num1 num2 num3 num4 num5 num6 credit t_close1 t_close2 t_close3)
-WIN=("0,1.6" "1.6,3.65" "3.65,6.85" "6.85,9.35" "9.35,11.85" "11.85,14.35" "14.35,16.85" "16.85,19.35" "19.35,21.85" "6.85,21.85" "21.85,24.0" "24.0,26.2" "26.2,28.4")
+WIN=("0,1.6" "1.6,3.65" "3.65,6.85" "6.85,9.35" "9.35,11.85" "11.85,14.35" "14.35,16.85" "16.85,19.35" "19.35,21.85" "6.85,21.85" "21.85,23.62" "23.62,25.91" "25.91,28.4")
 INPUTS=""; FC="[0:v]null[v0];"
 for i in "${!OVL[@]}"; do
   INPUTS+=" $(o "${OVL[$i]}")"
