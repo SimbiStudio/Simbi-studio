@@ -225,14 +225,6 @@ const SceneCard: React.FC<{n: number; src: string}> = ({n, src}) => {
         {n}
       </div>
       <Pill style={{top: 270, right: 80}}>¿IA o real?</Pill>
-      <div style={{position: 'absolute', top: 1460, left: 80, right: 80, display: 'flex', gap: 12}}>
-        {SCENES.map((_, i) => (
-          <div
-            key={i}
-            style={{flex: 1, height: 8, borderRadius: 4, background: i < n ? PAPER : 'rgba(246,242,236,0.3)'}}
-          />
-        ))}
-      </div>
     </AbsoluteFill>
   );
 };
